@@ -41,13 +41,13 @@ complex_stream = (symbol_stream(:,1) + 1i* symbol_stream(:,2))/sqrt(2);
 % use variables, not magic numbers
 % match symbol rate, imagine baud = 3kHz
 
-b = 4e3;
+b = 1e3;
 fs = 16e3;
 sps = fs/b;
-fc = 10e3;
+fc = 5e3;
 % expand signal -> upsample
 
-generic_mod = pskmod(bits.', 4, pi/4, "InputType","bit" );
+generic_mod = pskmod(bits, 4);
 
 upsampled_signal = repmat(complex_stream,[1 sps]);
 
@@ -100,14 +100,7 @@ title("Delays for signal affected by channel")
 % in future, delay and sum (2 delays - watch number of samples)
 
 figure(3)
-tiledlayout(1,2)
-nexttile
 plot(baseband_signal, "o")
-title("DIY PSK")
-nexttile
-plot(generic_mod, "o")
-title("PSKMOD")
-
 
 % from cross correlation (identifying the pilot signals), choose where to
 % begin signal decoding
