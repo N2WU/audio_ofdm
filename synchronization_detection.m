@@ -118,7 +118,7 @@ title("PSKMOD")
 
 [peaks, location] = findpeaks(abs(r));
 [max_peak, max_location] = max(peaks);
-rx_packet = rx_signal(location(max_location):end);
+rx_packet = baseband_signal(location(max_location):end);
 
 % possible conversion, noise estimation, coding, etc?
 %{
@@ -132,22 +132,25 @@ end
 % I don't think you can throw this directly into pskdemod - some sort of
 % downconverting has to be done here
 
-demod_signal = pskdemod(rx_packet, 4, pi/4, "OutputType","bit");
+rx_packet = downsample(rx_packet, sps);
+
+demod_signal = pskdemod(rx_packet, 4, pi/4, "OutputType","bit", "PlotConstellation",false);
 % the signal is "upsampled" now, so has to be downconverted to match length
 % of bits
 
-downconv_signal = [demod_signal(1, 1:2:end); demod_signal(2, 1:2:end)];
+%downconv_signal = [demod_signal(1, 1:2:end); demod_signal(2, 1:2:end)];
 
-downconv_signal = reshape(downconv_signal.',[],1).';
+downconv_signal = reshape(demod_signal,[],1).';
 
 % one more step to transform 48k vec to 6k vec
 
-bits_rx = downconv_signal(1:8:end);
+bits_rx = downconv_signal;
 
 figure(3)
-plot(bits, "o")
+plot(bits(:,900:1e3), "o")
 hold on
-plot(bits_rx, "o")
+plot(bits_rx(:,900:1e3), "*")
+plot(xor(bits_rx(:,900:1e3), bits(:,900:1e3))/3 + 1/3, "+")
 legend()
 hold off
 
