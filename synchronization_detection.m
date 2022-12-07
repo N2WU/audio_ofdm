@@ -27,8 +27,8 @@ end
 
 % you now have 280 vectors of 6e3 length with a 1e3 header
 
-bits = new_mat(1,:);
-bits = bits(1,1:6e3);
+bits = new_mat(length(new_mat(:,1))/2,:);
+%bits = bits(1,1:6e3);
 % 0phi, 1phi, 2phi, 3phi
 symbol_stream = (reshape(bits,[],2) * 2) -1;
 
@@ -36,18 +36,20 @@ symbol_stream = (reshape(bits,[],2) * 2) -1;
 % real "stream" and imaginary stream
 
 % 0,1 to (-1,1)
-complex_stream = (symbol_stream(:,1) + 1i* symbol_stream(:,2))/sqrt(2);
+%complex_stream = (symbol_stream(:,1) + 1i* symbol_stream(:,2))/sqrt(2);
 
 % use variables, not magic numbers
 % match symbol rate, imagine baud = 3kHz
 
-b = 4e3;
-fs = 16e3;
+b = 3e3;
+fs = 48e3;
 sps = fs/b;
 fc = 10e3;
 % expand signal -> upsample
 
 generic_mod = pskmod(bits.', 4, pi/4, "InputType","bit" );
+
+complex_stream = generic_mod;
 
 upsampled_signal = repmat(complex_stream,[1 sps]);
 
@@ -81,7 +83,7 @@ hold off
 
 delay = 1e-1;
 zeroarray = zeros(1,(fs * delay));
-rx_signal = [zeroarray passband_signal];
+rx_signal = [zeroarray passband_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 baseband_signal = rx_signal .* exp(-2*pi*fc*1i*t_rx);
 % peak detection: cross correlations
@@ -99,6 +101,7 @@ title("Delays for signal affected by channel")
 
 % in future, delay and sum (2 delays - watch number of samples)
 
+%{
 figure(3)
 tiledlayout(1,2)
 nexttile
@@ -107,11 +110,46 @@ title("DIY PSK")
 nexttile
 plot(generic_mod, "o")
 title("PSKMOD")
+%}
 
-
+%% Receiving
 % from cross correlation (identifying the pilot signals), choose where to
 % begin signal decoding
 
+[peaks, location] = findpeaks(abs(r));
+[max_peak, max_location] = max(peaks);
+rx_packet = rx_signal(location(max_location):end);
+
+% possible conversion, noise estimation, coding, etc?
+%{
+padding = length(rx_signal) - length(rx_packet);
+
+if padding > 0
+    rx_packet_pad = [rx_packet zeros(1,padding)];
+end
+%}
+
+% I don't think you can throw this directly into pskdemod - some sort of
+% downconverting has to be done here
+
+demod_signal = pskdemod(rx_packet, 4, pi/4, "OutputType","bit");
+% the signal is "upsampled" now, so has to be downconverted to match length
+% of bits
+
+downconv_signal = [demod_signal(1, 1:2:end); demod_signal(2, 1:2:end)];
+
+downconv_signal = reshape(downconv_signal.',[],1).';
+
+% one more step to transform 48k vec to 6k vec
+
+bits_rx = downconv_signal(1:8:end);
+
+figure(3)
+plot(bits, "o")
+hold on
+plot(bits_rx, "o")
+legend()
+hold off
 
 
 
