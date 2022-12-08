@@ -5,6 +5,7 @@ rng(6);
 % This is where the image part comes in
 % import image
 raw_image = double(imread("stostakovich_image.png"));
+% a(:)
 image_stream = reshape(raw_image.', [], 1);
 % round it up to 1.4e6
 image_stream_pad = [image_stream.' zeros((1.4e6 - length(image_stream)), 1).'].';
@@ -47,9 +48,15 @@ sps = fs/b;
 fc = 10e3;
 % expand signal -> upsample
 
-generic_mod = pskmod(bits.', 4, pi/4, "InputType","bit" );
+generic_mod = pskmod(bits.', 4, pi/4, "InputType","bit" ); % do it on pilot only, then on data
+%ifft, certain points, transmit passband baseband
+
+%demod - fft(ofdm), number of carriers
+%plot received signal abs to see channel (straight line w/ no channel effects)
 
 complex_stream = generic_mod;
+
+% for ofdm, modulate symbols
 
 upsampled_signal = repmat(complex_stream,[1 sps]);
 
@@ -89,7 +96,8 @@ baseband_signal = rx_signal .* exp(-2*pi*fc*1i*t_rx);
 % peak detection: cross correlations
 % if you want to be smart, cross-correlate with preamble (known) part of
 % ofdm (known)
-[r,delay] = xcorr(baseband_signal, upsampled_stream);
+% DC - correlation is triangle (non-zero component)
+[r,delay] = xcorr(baseband_signal, resample(pskmod(pilot_bits, 4, pi/4, "InputType","bit"), sps, 1));
 
 r = r(delay>=0);
 delay = delay(delay>=0);
@@ -116,9 +124,9 @@ title("PSKMOD")
 % from cross correlation (identifying the pilot signals), choose where to
 % begin signal decoding
 
-[peaks, location] = findpeaks(abs(r));
-[max_peak, max_location] = max(peaks);
-rx_packet = baseband_signal(location(max_location):end);
+%[peaks, location] = findpeaks(abs(r));
+[max_peak, max_location] = max(abs(r));
+rx_packet = baseband_signal(max_location+1:end);
 
 % possible conversion, noise estimation, coding, etc?
 %{
@@ -132,9 +140,9 @@ end
 % I don't think you can throw this directly into pskdemod - some sort of
 % downconverting has to be done here
 
-rx_packet = downsample(rx_packet, sps);
+rx_packet = resample(rx_packet, 1, sps);
 
-demod_signal = pskdemod(rx_packet, 4, pi/4, "OutputType","bit", "PlotConstellation",false);
+demod_signal = pskdemod(rx_packet, 4, pi/4, "OutputType","bit", "PlotConstellation",true);
 % the signal is "upsampled" now, so has to be downconverted to match length
 % of bits
 
@@ -151,8 +159,19 @@ plot(bits(:,900:1e3), "o")
 hold on
 plot(bits_rx(:,900:1e3), "*")
 plot(xor(bits_rx(:,900:1e3), bits(:,900:1e3))/3 + 1/3, "+")
-legend()
+legend("Input Bits","Output Bits","XOR")
 hold off
 
+figure(4)
+scatterplot(rx_packet);
 
+%% ofdm
 
+% pilots needed for time synchronization
+% frame = [sc psk (preamble), zeros(guard), ofdm blocks, zeros(guard),
+% sc psk postamble]
+% ofdm blocks = [crc or zero padding, data]
+% transmitter - pilots on carrier - equally spaced 1, 4, 8... for channel
+% estimator
+
+%imshow(imread())
