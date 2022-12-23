@@ -1,0 +1,81 @@
+%% Image transmission via acoustic OFDM
+% NP 2022/12/23
+% Uses important code blocks from PSK counterpart
+% Accounts for channel impairements, etc.
+
+clear all
+rng(6);
+
+%% Load image
+
+raw_image = double(imread("stostakovich_image.png"));
+image_stream = reshape(raw_image.', [], 1);
+%image_stream_pad = [image_stream.' zeros((1.4e6 - length(image_stream)), 1).'].';
+
+%% Generate bitstream (S-P Implementation)
+% Format of data (subcarrier): [Pilot Data Data Pilot Data Data Pilot]
+% Format of data (symbol index): [Pilot Data Pilot Pilot Pilot Data Pilot]
+% -> Spatially and temporally-distributed pilot tones with guard interval
+% -> Pilot tones are followed by 16 symbols of 0s
+% Pilot Tones are 64 (48 + 16) symbols long, and data frames are 960 w/ 16
+% blank bits (944 + 16)
+% symbols (64 + 960 = 1024)
+% Spatially distributed?
+
+% add pilot bits here
+pilot_size = 64;
+frame_size = 1024;
+space_size = 16;
+pilot_data = pilot_size-space_size;
+data_size = frame_size - pilot_size - space_size;
+pilot_bits = randi([0,1],1,pilot_data); % 16 blank symbols should be no transmission, not 0 data transmission
+
+% How are pilot bits added? Modulated via PSK?
+% OFDM variables
+b = 3e3; % bandwdith
+fs = 48e3; % sampling freq
+sps = fs/b; %samples per second
+fc = 10e3; % carrier freq
+%t = (0:length(complex_data_vec) -1)/fs
+nsubcarriers = 128;
+delta_f = b/nsubcarriers;
+
+complex_data_stream = reshape(image_stream, [length(image_stream)/2,2]).*2 - 1;
+complex_data_vec = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqrt(2);
+
+% repeat with pilot bits
+
+pilot_stream = reshape(pilot_bits, [pilot_data/2, 2]).*2 - 1;
+pilot_vec = (pilot_stream(:,1) + 1i*pilot_stream(:,2))./sqrt(2);
+
+
+%% Generate symbol stream
+% Slot within resource grid?
+
+% using imperfect data:
+round_int = mod(length(complex_data_vec)+nsubcarriers,nsubcarriers);
+complex_data_vec = [complex_data_vec.' zeros(nsubcarriers-round_int, 1).'].';
+symbol_mat = reshape(complex_data_vec,nsubcarriers,[]);
+t = (0:length(complex_data_vec) -1)/fs;
+
+% f_vec = linspace(-b/2,b/2,nsubcarriers).*fc;
+ifft_data = ifft(symbol_mat, nsubcarriers);
+% something happens right here that makes array sizes incompatible
+ifft_data_real = real(ifft_data);
+ifft_data_im = imag(ifft_data);
+ofdm_signal = ifft_data_real.*exp(2*pi*fc*t) + ifft_data_im.*exp(1i*2*pi*fc*t);
+%sound(real(ofdm_signal),fs)
+
+
+%% Transmit data
+% modulate to passband
+
+%% Channel Simulator
+
+%% Receive Image
+
+%% Repack into symbol stream
+
+%% Repack into bitstream
+
+%% Format and display image
