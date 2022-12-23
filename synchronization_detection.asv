@@ -7,7 +7,7 @@ rng(6);
 raw_image = double(imread("stostakovich_image.png"));
 % a(:)
 image_stream = reshape(raw_image.', [], 1);
-
+r = reshape(raw_image.', image_stream_pad, 1);
 % round it up to 1.4e6
 image_stream_pad = [image_stream.' zeros((1.4e6 - length(image_stream)), 1).'].';
 
@@ -200,13 +200,8 @@ bits = new_mat(length(new_mat(:,1))/2,:);
 rx_mat(m,:) = bits_rx;
 end
 
-% chop off pilot bits
-rx_mat = rx_mat(:,length(pilot_bits)+1:end);
-% turn it into one vector
-rx_stream = reshape(rx_mat.', size(image_stream_pad));
-% remove zeros at the end
-rx_stream = rx_stream(1:length(image_stream));
+rx_mat = rx_mat(pilot_bits+1:end,:);
 
-rx_im = reshape(rx_stream, size(raw_image)).';
+rx_im = reshape(rx_mat,size(raw_image));
 
 imshow(rx_im);
