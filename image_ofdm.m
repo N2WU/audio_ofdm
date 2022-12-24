@@ -46,8 +46,9 @@ complex_data_vec = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqr
 % repeat with pilot bits
 
 pilot_stream = reshape(pilot_bits, [pilot_data/2, 2]).*2 - 1;
-pilot_vec = (pilot_stream(:,1) + 1i*pilot_stream(:,2))./sqrt(2);
+pilot_symbols = (pilot_stream(:,1) + 1i*pilot_stream(:,2))./sqrt(2);
 
+% build packet here - pilots, etc
 
 %% Generate symbol stream
 % Slot within resource grid?
@@ -55,25 +56,41 @@ pilot_vec = (pilot_stream(:,1) + 1i*pilot_stream(:,2))./sqrt(2);
 % using imperfect data:
 round_int = mod(length(complex_data_vec)+nsubcarriers,nsubcarriers);
 complex_data_vec = [complex_data_vec.' zeros(nsubcarriers-round_int, 1).'].';
-symbol_mat = reshape(complex_data_vec,nsubcarriers,[]);
 t = (0:length(complex_data_vec) -1)/fs;
 
-% f_vec = linspace(-b/2,b/2,nsubcarriers).*fc;
-ifft_data = ifft(symbol_mat, nsubcarriers);
-% something happens right here that makes array sizes incompatible
-% 128 x 5458
-ifft_data_real = real(ifft_data);
-ifft_data_im = imag(ifft_data);
-ofdm_signal = ifft_data_real.*exp(2*pi*fc*t) + ifft_data_im.*exp(1i*2*pi*fc*t);
-sound(real(ofdm_signal),fs)
-
+% 1. divide symbol stream d into k subcarriers
+symbol_mat = reshape(complex_data_vec,nsubcarriers,[]);
+% 2. feed parallel stream and 0s into idft block for n=0->Ns-1
+u_n = ifft(symbol_mat,nsubcarriers);
+% 3. convert into serial again and filter with g(n)
+u = reshape(u_n,[],1).';
 
 %% Transmit data
 % modulate to passband
 
+audio_signal = real(u .* exp(1i*fc*2*pi*t));
+%sound(audio_signal,fs)
+
 %% Channel Simulator
+% delay
+delay = 1e-1;
+zeroarray = zeros(1,(fs * delay));
+rx_signal = [zeroarray audio_signal]; %4800 + 48000
+t_rx = (0:length(rx_signal) -1)/fs;
+
+% noise
+noise_signal = awgn(rx_signal,10);
+plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
 
 %% Receive Image
+
+baseband_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx);
+[r,delay] = xcorr(baseband_signal, pilot_symbols);
+r = r(delay>=0);
+delay = delay(delay>=0);
+
+delay_axis = delay/fs;
+% or, ignore all this and receive it without pilots or channel impairments?
 
 %% Repack into symbol stream
 
