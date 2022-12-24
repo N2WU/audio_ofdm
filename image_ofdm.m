@@ -41,7 +41,7 @@ nsubcarriers = 128;
 delta_f = b/nsubcarriers;
 
 complex_data_stream = reshape(image_stream, [length(image_stream)/2,2]).*2 - 1;
-complex_data_vec = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqrt(2);
+complex_data_vec_ur = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqrt(2);
 
 % repeat with pilot bits
 
@@ -54,8 +54,8 @@ pilot_symbols = (pilot_stream(:,1) + 1i*pilot_stream(:,2))./sqrt(2);
 % Slot within resource grid?
 
 % using imperfect data:
-round_int = mod(length(complex_data_vec)+nsubcarriers,nsubcarriers);
-complex_data_vec = [complex_data_vec.' zeros(nsubcarriers-round_int, 1).'].';
+round_int = mod(length(complex_data_vec_ur)+nsubcarriers,nsubcarriers);
+complex_data_vec = [complex_data_vec_ur.' zeros(nsubcarriers-round_int, 1).'].';
 t = (0:length(complex_data_vec) -1)/fs;
 
 % 1. divide symbol stream d into k subcarriers
@@ -79,12 +79,15 @@ rx_signal = [zeroarray audio_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-noise_signal = awgn(rx_signal,10);
-plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-
+%noise_signal = awgn(rx_signal,10);
+%plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
+noise_signal = audio_signal;
 %% Receive Image
 
-baseband_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx);
+%1. Downshift and convert to parallel streams
+baseband_signal = noise_signal .* exp(-2*pi*fc*1i*t); %t_rx
+
+% Delay impairement
 [r,delay] = xcorr(baseband_signal, pilot_symbols);
 r = r(delay>=0);
 delay = delay(delay>=0);
@@ -92,8 +95,25 @@ delay = delay(delay>=0);
 delay_axis = delay/fs;
 % or, ignore all this and receive it without pilots or channel impairments?
 
+% 1a. Convert to parallel stream
+baseband_mat = reshape(baseband_signal,[],nsubcarriers);
+% 2. Remove Ng samples (CP or ZP) and feed into DFT
+post_fft = fft(baseband_mat.', nsubcarriers);
+
 %% Repack into symbol stream
+% 4a. Parallel to serial conversion
+rx_symbol_stream = reshape(post_fft,[],1);
 
 %% Repack into bitstream
+% 4ab. Removing zeros
+rx_symbol_stream = rx_symbol_stream(1:length(complex_data_vec_ur));
+% some function to turn this into symbols? Just a coherence issue?
+
+% 4b. Symbol Mapping
+rx_symbol_mat = (sqrt(2)*[real(rx_symbol_stream) ; imag(rx_symbol_stream)] + 1)/2;
+rx_image_stream = reshape(rx_symbol_mat.', [],1);
 
 %% Format and display image
+
+rx_image = reshape(rx_image_stream, size(raw_image));
+imshow(rx_image);
