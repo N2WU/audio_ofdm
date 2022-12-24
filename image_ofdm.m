@@ -67,8 +67,10 @@ u = reshape(u_n,[],1).';
 
 %% Transmit data
 % modulate to passband
+u_upsample = repmat(u,[1 sps]);
+ts = (0:length(u_upsample)-1)/fs;
 
-audio_signal = real(u .* exp(1i*fc*2*pi*t));
+audio_signal = real(u_upsample .* exp(1i*fc*2*pi*ts));
 %sound(audio_signal,fs)
 
 %% Channel Simulator
@@ -85,8 +87,8 @@ noise_signal = audio_signal;
 %% Receive Image
 
 %1. Downshift and convert to parallel streams
-baseband_signal = noise_signal .* exp(-2*pi*fc*1i*t); %t_rx
-
+rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*ts); %t_rx
+baseband_signal = resample(rx_upsampled_signal,1, sps);
 % Delay impairement
 [r,delay] = xcorr(baseband_signal, pilot_symbols);
 r = r(delay>=0);
