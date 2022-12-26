@@ -67,7 +67,7 @@ u = reshape(u_n,[],1).';
 
 %% Transmit data
 % modulate to passband
-u_upsample = repmat(u,[1 sps]);
+u_upsample = resample(u,sps,1);
 ts = (0:length(u_upsample)-1)/fs;
 
 audio_signal = real(u_upsample .* exp(1i*fc*2*pi*ts));
@@ -88,7 +88,7 @@ noise_signal = audio_signal;
 
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*ts); %t_rx
-baseband_signal = resample(rx_upsampled_signal,1, sps);
+baseband_signal = resample(rx_upsampled_signal, 1,sps);
 % Delay impairement
 [r,delay] = xcorr(baseband_signal, pilot_symbols);
 r = r(delay>=0);
@@ -98,24 +98,26 @@ delay_axis = delay/fs;
 % or, ignore all this and receive it without pilots or channel impairments?
 
 % 1a. Convert to parallel stream
-baseband_mat = reshape(baseband_signal,[],nsubcarriers);
+baseband_mat = reshape(baseband_signal,size(u_n));
 % 2. Remove Ng samples (CP or ZP) and feed into DFT
-post_fft = fft(baseband_mat.', nsubcarriers);
+%post_fft = fft(u_n, nsubcarriers);
+post_fft = fft(baseband_mat, nsubcarriers);
+%post_fft = symbol_mat;
 
 %% Repack into symbol stream
 % 4a. Parallel to serial conversion
-rx_symbol_stream = reshape(post_fft,[],1);
+rx_symbol_stream = reshape(post_fft,[],1).';
 
 %% Repack into bitstream
 % 4ab. Removing zeros
-rx_symbol_stream = rx_symbol_stream(1:length(complex_data_vec_ur));
+rx_symbol_stream = rx_symbol_stream(1:length(complex_data_vec_ur)).';
 % some function to turn this into symbols? Just a coherence issue?
 
 % 4b. Symbol Mapping
 rx_symbol_mat = (sqrt(2)*[real(rx_symbol_stream) ; imag(rx_symbol_stream)] + 1)/2;
-rx_image_stream = reshape(rx_symbol_mat.', [],1);
+rx_image_stream = reshape(rx_symbol_mat.',[],1);%reshape(rx_symbol_mat.', [],1);
 
 %% Format and display image
 
 rx_image = reshape(rx_image_stream, size(raw_image));
-imshow(rx_image);
+imshow(rx_image.');
