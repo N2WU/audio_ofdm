@@ -30,7 +30,6 @@ pilot_data = pilot_size-space_size;
 data_size = frame_size - pilot_size - space_size;
 pilot_bits = randi([0,1],1,pilot_data); % 16 blank symbols should be no transmission, not 0 data transmission
 
-% How are pilot bits added? Modulated via PSK?
 % OFDM variables
 b = 3e3; % bandwdith
 fs = 48e3; % sampling freq
@@ -85,7 +84,6 @@ t_rx = (0:length(rx_signal) -1)/fs;
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
 noise_signal = audio_signal;
 %% Receive Image
-
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*ts); %t_rx
 baseband_signal = resample(rx_upsampled_signal, 1,sps);
@@ -100,9 +98,7 @@ delay_axis = delay/fs;
 % 1a. Convert to parallel stream
 baseband_mat = reshape(baseband_signal,size(u_n));
 % 2. Remove Ng samples (CP or ZP) and feed into DFT
-%post_fft = fft(u_n, nsubcarriers);
 post_fft = fft(baseband_mat, nsubcarriers);
-%post_fft = symbol_mat;
 
 %% Repack into symbol stream
 % 4a. Parallel to serial conversion
