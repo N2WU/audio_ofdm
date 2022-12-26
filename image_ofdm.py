@@ -16,7 +16,7 @@ from matplotlib import pyplot
 
 # Load image
 raw_image = np.array(image.imread('shostakovich_image.png'))
-image_stream = np.reshape(raw_image, -1)
+image_stream = np.reshape(np.transpose(raw_image), -1) #transpose due to matlab quirk
 
 # Generate bitstream
 pilot_size = 64
@@ -40,24 +40,24 @@ pilot_stream = np.reshape(pilot_bits,[pilot_data/2,2])*2 - 1
 pilot_symbols = (pilot_stream[:,1] + 1j*pilot_stream[:,2])/np.sqrt(2)
 # Generate symbol stream
 round_int = np.mod(len(complex_data_vec_ur)+nsubcarriers,nsubcarriers)
-complex_data_vec = [complex_data_vec_ur np.zeros(nsubcarriers-round_int,1)] #fix transposes
-t = (0:len(complex_data_vec)-1)/fs
+complex_data_vec = [complex_data_vec_ur, np.zeros(nsubcarriers-round_int,1)] #fix transposes
+t = np.arrange(0,(len(complex_data_vec)-1)/fs, 1/fs)
 
 symbol_mat = np.reshape(complex_data_vec, (nsubcarriers, -1))
-u_n = np.fft(symbol_mat, nsubcarriers)
+u_n = np.ifft(np.transpose(symbol_mat), nsubcarriers)
 u = np.reshape(u_n, -1) #transpose
 
 # Transmit data
 u_upsample = np.repeat(u, (1,sps))
-ts = (0:len(u_upsample)-1)/fs
+ts = np.arrange(0,(len(u_upsample)-1)/fs, 1/fs)
 
 audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
 # Channel simulator
 ## Delay
 delay = 0.1
 zeroarray = np.zeros(1,(fs*delay))
-rx_signal = [zeroarray audio_signal]
-t_rx = (0:length(rx_signal) - 1)/fs
+rx_signal = [zeroarray, audio_signal]
+t_rx = np.arrange(0,(len(rx_signal)-1)/fs, 1/fs)
 ## Noise
 noise_signal = np.awgn(rx_signal,10)
 noise_signal = audio_signal
@@ -72,7 +72,7 @@ delay = delay[delay>=0]
 
 delay_axis = delay/fs
 baseband_mat = np.reshape(baseband_signal,(-1,nsubcarriers))
-post_fft = np.fft(baseband_signal,nsubcarriers)
+post_fft = np.fft(np.tranpose(baseband_signal),nsubcarriers)
 
 # Repack into symbol stream
 rx_symbol_stream = np.reshape(post_fft,-1)
@@ -80,10 +80,9 @@ rx_symbol_stream = np.reshape(post_fft,-1)
 # Repack into bitstream
 rx_symbol_stream = rx_symbol_stream[1:np.length(complex_data_vec_ur)]
 ## current hangup
-rx_symbol_mat = (np.sqrt(2)*[np.real(rx_symbol_stream); np.imag(rx_symbol_stream)] + 1)/2
+rx_symbol_mat = [np.sqrt(2)*np.real(rx_symbol_stream) + 1, np.imag(rx_symbol_stream)] / 2
 rx_image_stream = np.reshape(rx_symbol_mat, -1)
 
 # Format and display image
-
 rx_image = np.reshape(rx_image_stream, np.size(raw_image))
-
+image.imshow(rx_image)
