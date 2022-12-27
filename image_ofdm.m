@@ -8,7 +8,7 @@ rng(6);
 
 %% Load image
 
-raw_image = double(imread("stostakovich_image.png"));
+raw_image = double(imread("shostakovich_image.png"));
 image_stream = reshape(raw_image.', [], 1);
 %image_stream_pad = [image_stream.' zeros((1.4e6 - length(image_stream)), 1).'].';
 

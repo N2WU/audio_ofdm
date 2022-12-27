@@ -15,7 +15,7 @@ from matplotlib import image
 from matplotlib import pyplot
 
 # Load image
-raw_image = np.array(image.imread('shostakovich_image.png'))
+raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png'))
 image_stream = np.reshape(np.transpose(raw_image), -1) #transpose due to matlab quirk
 
 # Generate bitstream
@@ -48,7 +48,7 @@ u_n = np.ifft(np.transpose(symbol_mat), nsubcarriers)
 u = np.reshape(u_n, -1) #transpose
 
 # Transmit data
-u_upsample = np.repeat(u, (1,sps))
+u_upsample = np.repeat(u, sps) # so technically it repeats each bit 16 times
 ts = np.arrange(0,(len(u_upsample)-1)/fs, 1/fs)
 
 audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
@@ -64,7 +64,8 @@ noise_signal = audio_signal
 
 # Receive image
 rx_upsampled_signal = noise_signal * np.exp(-2*np.py*fc*1j*ts)
-baseband_signal = np.resample(rx_upsampled_signal,1,sps)
+# baseband_signal = np.resample(rx_upsampled_signal,1,sps)
+baseband_signal = rx_upsampled_signal[::sps]
 ## Delay impairment
 [r,delay] = np.xcorr(baseband_signal,pilot_symbols)
 r = r[delay>=0]
