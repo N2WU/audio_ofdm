@@ -34,14 +34,15 @@ nsubcarriers = 128
 delta_f = b/nsubcarriers
 
 complex_data_stream = np.reshape(image_stream, (-1, 2)) *2 - 1
-complex_data_vec_ur = (complex_data_stream[:,1] + 1j*complex_data_stream[:,2])/np.sqrt(2)
+complex_data_vec_ur = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.sqrt(2)
 
-pilot_stream = np.reshape(pilot_bits,[pilot_data/2,2])*2 - 1
-pilot_symbols = (pilot_stream[:,1] + 1j*pilot_stream[:,2])/np.sqrt(2)
+pilot_stream = np.reshape(pilot_bits,[int(pilot_data/2),2])*2 - 1
+pilot_symbols = (pilot_stream[:,0] + 1j*pilot_stream[:,1])/np.sqrt(2)
 # Generate symbol stream
 round_int = np.mod(len(complex_data_vec_ur)+nsubcarriers,nsubcarriers)
-complex_data_vec = [complex_data_vec_ur, np.zeros(nsubcarriers-round_int,1)] #fix transposes
-t = np.arrange(0,(len(complex_data_vec)-1)/fs, 1/fs)
+print(np.size(complex_data_vec_ur))
+complex_data_vec = [complex_data_vec_ur.T, np.zeros((nsubcarriers-round_int,1))] #fix transposes
+t = np.arange(0,(len(complex_data_vec)-1)/fs, 1/fs)
 
 symbol_mat = np.reshape(complex_data_vec, (nsubcarriers, -1))
 u_n = np.ifft(np.transpose(symbol_mat), nsubcarriers)
@@ -49,15 +50,15 @@ u = np.reshape(u_n, -1) #transpose
 
 # Transmit data
 u_upsample = np.repeat(u, sps) # so technically it repeats each bit 16 times
-ts = np.arrange(0,(len(u_upsample)-1)/fs, 1/fs)
+ts = np.arange(0,(len(u_upsample)-1)/fs, 1/fs)
 
 audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
 # Channel simulator
 ## Delay
 delay = 0.1
-zeroarray = np.zeros(1,(fs*delay))
+zeroarray = np.zeros((1,(fs*delay)))
 rx_signal = [zeroarray, audio_signal]
-t_rx = np.arrange(0,(len(rx_signal)-1)/fs, 1/fs)
+t_rx = np.arange(0,(len(rx_signal)-1)/fs, 1/fs)
 ## Noise
 noise_signal = np.awgn(rx_signal,10)
 noise_signal = audio_signal
@@ -79,7 +80,7 @@ post_fft = np.fft(np.tranpose(baseband_signal),nsubcarriers)
 rx_symbol_stream = np.reshape(post_fft,-1)
 
 # Repack into bitstream
-rx_symbol_stream = rx_symbol_stream[1:np.length(complex_data_vec_ur)]
+rx_symbol_stream = rx_symbol_stream[0:np.length(complex_data_vec_ur)]
 ## current hangup
 rx_symbol_mat = [np.sqrt(2)*np.real(rx_symbol_stream) + 1, np.imag(rx_symbol_stream)] / 2
 rx_image_stream = np.reshape(rx_symbol_mat, -1)
