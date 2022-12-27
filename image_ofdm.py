@@ -18,7 +18,7 @@ from scipy import signal
 
 # Load image
 raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png'))
-image_stream = np.reshape(np.transpose(raw_image), -1) #transpose due to matlab quirk
+image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
 
 # Generate bitstream
 pilot_size = 64
@@ -35,7 +35,7 @@ fc = 10000
 nsubcarriers = 128
 delta_f = b/nsubcarriers
 
-complex_data_stream = np.reshape(image_stream, (-1, 2)) *2 - 1
+complex_data_stream = np.reshape(image_stream, (-1, 2))*2 - 1
 complex_data_vec_ur = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.sqrt(2)
 
 pilot_stream = np.reshape(pilot_bits,[int(pilot_data/2),2])*2 - 1
@@ -46,7 +46,7 @@ complex_data_vec = np.append(complex_data_vec_ur, np.zeros((1,int(nsubcarriers-r
 t = np.arange(0,(len(complex_data_vec))/fs, 1/fs)
 
 symbol_mat = np.reshape(complex_data_vec, (nsubcarriers, -1))
-u_n = np.fft.ifft(np.transpose(symbol_mat), nsubcarriers)
+u_n = np.fft.ifft(symbol_mat.T, nsubcarriers)
 u = np.reshape(u_n, -1) #transpose
 
 # Transmit data
@@ -77,7 +77,7 @@ delay = delay[delay>=0]
 delay_axis = delay/fs
 """
 baseband_mat = np.reshape(baseband_signal,(-1,nsubcarriers))
-post_fft = np.fft.fft(baseband_mat,nsubcarriers)
+post_fft = np.fft.fft(baseband_mat,nsubcarriers).T #baseband_mat
 
 # Repack into symbol stream
 rx_symbol_stream = np.reshape(post_fft,-1)
@@ -85,11 +85,10 @@ rx_symbol_stream = np.reshape(post_fft,-1)
 # Repack into bitstream
 rx_symbol_stream = rx_symbol_stream[0:len(complex_data_vec_ur)]
 ## current hangup
-#rx_symbol_mat = [np.sqrt(2)*np.real(rx_symbol_stream) + 1, np.sqrt(2)*np.imag(rx_symbol_stream) + 1] / 2
 rx_symbol_real = (np.sqrt(2)*np.real(rx_symbol_stream) + 1)/2
 rx_symbol_imag = (np.sqrt(2)*np.imag(rx_symbol_stream) + 1)/2
 rx_symbol_mat = np.vstack((rx_symbol_real,rx_symbol_imag))
-rx_image_stream = np.reshape(rx_symbol_mat, -1)
+rx_image_stream = np.reshape(rx_symbol_mat, -1, order='F')
 
 # Format and display image
 rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
