@@ -55,7 +55,7 @@ u_upsample = signal.resample(u, int(sps*len(u))) # so technically it repeats eac
 ts = np.arange(0,(len(u_upsample))/fs, 1/fs)
 
 audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
-sd.play(audio_signal)
+#sd.play(audio_signal)
 # Channel simulator
 ## Delay
 delay = 0.1
