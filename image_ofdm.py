@@ -14,6 +14,8 @@ import numpy as np
 from matplotlib import image
 from matplotlib import pyplot
 
+from scipy import signal
+
 # Load image
 raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png'))
 image_stream = np.reshape(np.transpose(raw_image), -1) #transpose due to matlab quirk
@@ -40,51 +42,56 @@ pilot_stream = np.reshape(pilot_bits,[int(pilot_data/2),2])*2 - 1
 pilot_symbols = (pilot_stream[:,0] + 1j*pilot_stream[:,1])/np.sqrt(2)
 # Generate symbol stream
 round_int = np.mod(len(complex_data_vec_ur)+nsubcarriers,nsubcarriers)
-print(np.size(complex_data_vec_ur))
-complex_data_vec = [complex_data_vec_ur.T, np.zeros((nsubcarriers-round_int,1))] #fix transposes
-t = np.arange(0,(len(complex_data_vec)-1)/fs, 1/fs)
+complex_data_vec = np.append(complex_data_vec_ur, np.zeros((1,int(nsubcarriers-round_int)), dtype=np.complex64)) #fix transposes
+t = np.arange(0,(len(complex_data_vec))/fs, 1/fs)
 
 symbol_mat = np.reshape(complex_data_vec, (nsubcarriers, -1))
-u_n = np.ifft(np.transpose(symbol_mat), nsubcarriers)
+u_n = np.fft.ifft(np.transpose(symbol_mat), nsubcarriers)
 u = np.reshape(u_n, -1) #transpose
 
 # Transmit data
-u_upsample = np.repeat(u, sps) # so technically it repeats each bit 16 times
-ts = np.arange(0,(len(u_upsample)-1)/fs, 1/fs)
+u_upsample = signal.resample(u, int(sps*len(u))) # so technically it repeats each bit 16 times
+ts = np.arange(0,(len(u_upsample))/fs, 1/fs)
 
 audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
 # Channel simulator
 ## Delay
 delay = 0.1
-zeroarray = np.zeros((1,(fs*delay)))
+zeroarray = np.zeros((1,int(fs*delay)))
 rx_signal = [zeroarray, audio_signal]
-t_rx = np.arange(0,(len(rx_signal)-1)/fs, 1/fs)
+t_rx = np.arange(0,(len(rx_signal))/fs, 1/fs)
 ## Noise
-noise_signal = np.awgn(rx_signal,10)
+# noise_signal = np.awgn(rx_signal,10) #has to be fixed later
 noise_signal = audio_signal
 
 # Receive image
-rx_upsampled_signal = noise_signal * np.exp(-2*np.py*fc*1j*ts)
+rx_upsampled_signal = noise_signal * np.exp(-2*np.pi*fc*1j*ts)
 # baseband_signal = np.resample(rx_upsampled_signal,1,sps)
-baseband_signal = rx_upsampled_signal[::sps]
+baseband_signal = signal.resample(rx_upsampled_signal, int(len(rx_upsampled_signal)/sps))
 ## Delay impairment
-[r,delay] = np.xcorr(baseband_signal,pilot_symbols)
+"""
+[r,delay] = np.correlate(baseband_signal,pilot_symbols)
 r = r[delay>=0]
 delay = delay[delay>=0]
 
 delay_axis = delay/fs
+"""
 baseband_mat = np.reshape(baseband_signal,(-1,nsubcarriers))
-post_fft = np.fft(np.tranpose(baseband_signal),nsubcarriers)
+post_fft = np.fft.fft(baseband_mat,nsubcarriers)
 
 # Repack into symbol stream
 rx_symbol_stream = np.reshape(post_fft,-1)
 
 # Repack into bitstream
-rx_symbol_stream = rx_symbol_stream[0:np.length(complex_data_vec_ur)]
+rx_symbol_stream = rx_symbol_stream[0:len(complex_data_vec_ur)]
 ## current hangup
-rx_symbol_mat = [np.sqrt(2)*np.real(rx_symbol_stream) + 1, np.imag(rx_symbol_stream)] / 2
+#rx_symbol_mat = [np.sqrt(2)*np.real(rx_symbol_stream) + 1, np.sqrt(2)*np.imag(rx_symbol_stream) + 1] / 2
+rx_symbol_real = (np.sqrt(2)*np.real(rx_symbol_stream) + 1)/2
+rx_symbol_imag = (np.sqrt(2)*np.imag(rx_symbol_stream) + 1)/2
+rx_symbol_mat = np.vstack((rx_symbol_real,rx_symbol_imag))
 rx_image_stream = np.reshape(rx_symbol_mat, -1)
 
 # Format and display image
-rx_image = np.reshape(rx_image_stream, np.size(raw_image))
-image.imshow(rx_image)
+rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
+display_image = pyplot.imshow(rx_image,cmap='gray',interpolation='nearest')
+pyplot.show()
