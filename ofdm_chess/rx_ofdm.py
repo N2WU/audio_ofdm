@@ -60,6 +60,7 @@ def rx_ofdm():
     rx_symbol_imag = (np.sqrt(2)*np.imag(rx_symbol_stream) + 1)/2
     rx_symbol_mat = np.vstack((rx_symbol_real,rx_symbol_imag))
     rx_bit_stream = np.reshape(rx_symbol_mat, -1, order='F')
-    rx_move = rx_bit_stream
+    rx_bytes = np.packbits(rx_bit_stream)
+    rx_move = ''.join(chr(val) for val in rx_bytes)
     return rx_move
 

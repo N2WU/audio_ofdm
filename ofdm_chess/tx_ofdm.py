@@ -24,9 +24,9 @@ def tx_audio(audio_signal):
 def tx_ofdm(move):
     # Load stream
     ## Convert from ascii to bits
-    byte_stream = np.fromstring(move, dtype='uint8', sep='')
+    byte_stream = np.fromstring(move, dtype='uint8')
     raw_bits = np.unpackbits(byte_stream)
-    bit_stream = np.reshape(raw_bits, -1) #transpose due to matlab quirk
+    bit_stream = raw_bits #np.reshape(raw_bits, -1) #transpose due to matlab quirk
 
     # Generate bitstream
     pilot_size = 64

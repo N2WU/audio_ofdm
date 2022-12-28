@@ -24,6 +24,7 @@ if color == "b":
     chess.Color = False
 elif color == "w":
     chess.Color = True
+
 # Game Loop
 while True:
     ## Draw Board
