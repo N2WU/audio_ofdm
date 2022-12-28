@@ -8,19 +8,33 @@
 """rx_ofdm.py receives the user-generated chess move signal. It is a function and not the main element."""
 #----------------------------------------------------------------------------
 import numpy as np
-
+import sounddevice as sd
 from scipy import signal
 
-def rx_ofdm(rx_signal):
+global fs
+fs = 48000
+sd.default.samplerate = fs
+sd.default.channels = 1
+
+def rx_audio():
+    # capture audio
+    input("Press any key to receive")
+    duration = 10  # seconds
+    rx_signal = sd.rec(int(duration * fs))
+    sd.wait()
+    return rx_signal
+    # return audio file to play with
+
+def rx_ofdm():
     b = 3000
-    fs = 48000
     sps = fs/b
     fc = 10000
     nsubcarriers = 128
+    rx_signal = rx_audio()
+
     data_length = 
     upsample_length = 
     ts = np.arange(0,upsample_length/fs, 1/fs)
-
     # Receive image
     rx_upsampled_signal = rx_signal * np.exp(-2*np.pi*fc*1j*ts)
     baseband_signal = signal.resample(rx_upsampled_signal, int(len(rx_upsampled_signal)/sps))
@@ -48,3 +62,4 @@ def rx_ofdm(rx_signal):
     rx_bit_stream = np.reshape(rx_symbol_mat, -1, order='F')
     rx_move = rx_bit_stream
     return rx_move
+

@@ -8,12 +8,24 @@
 """tx_ofdm.py transmits the user-generated chess move signal. It is a function and not the main element."""
 #----------------------------------------------------------------------------
 import numpy as np
-
+import sounddevice as sd
 from scipy import signal
+
+global fs 
+fs = 48000
+sd.default.samplerate = fs
+
+def tx_audio(audio_signal):
+    input("Press any key to transmit")
+    sd.play(audio_signal)
+    sd.wait()
+    return True
 
 def tx_ofdm(move):
     # Load stream
-    raw_bits = np.array(move)
+    ## Convert from ascii to bits
+    byte_stream = np.fromstring(move, dtype='uint8', sep='')
+    raw_bits = np.unpackbits(byte_stream)
     bit_stream = np.reshape(raw_bits, -1) #transpose due to matlab quirk
 
     # Generate bitstream
@@ -50,4 +62,5 @@ def tx_ofdm(move):
     ts = np.arange(0,(len(u_upsample))/fs, 1/fs)
 
     audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
-    return audio_signal
+    tx_audio(audio_signal)
+    return True
