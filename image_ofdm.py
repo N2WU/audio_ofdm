@@ -19,42 +19,59 @@ import sounddevice as sd
 
 # Load image
 raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png'))
+## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
 
 # Generate bitstream
-pilot_size = 64
+pre_size = 64
 frame_size = 1024
 space_size = 16
-pilot_data = pilot_size-space_size
-data_size = frame_size-pilot_size - space_size
-pilot_bits = np.random.randint(2, size=pilot_data)
+data_size = frame_size-pre_size - space_size
+pre_bits = np.array([1,0,0,1,1,1,0,1,1,0,0,0,1,1,0,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0])
+pre_size = (len(pre_bits) + 1)/2
 
 b = 3000
 fs = 48000
 sps = fs/b
 fc = 10000
 nsubcarriers = 128
+npilot = 16
 delta_f = b/nsubcarriers
+delay = 0.1
 
 complex_data_stream = np.reshape(image_stream, (-1, 2))*2 - 1
 complex_data_vec_ur = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.sqrt(2)
 
-pilot_stream = np.reshape(pilot_bits,[int(pilot_data/2),2])*2 - 1
-pilot_symbols = (pilot_stream[:,0] + 1j*pilot_stream[:,1])/np.sqrt(2)
+pre_bits = np.append(pre_bits,0)
+pre_stream = np.reshape(pre_bits,[pre_size,2])*2 - 1
+pre_symbols = (pre_stream[:,0] + 1j*pre_stream[:,1])/np.sqrt(2)
 # Generate symbol stream
-round_int = np.mod(len(complex_data_vec_ur)+nsubcarriers,nsubcarriers)
-complex_data_vec = np.append(complex_data_vec_ur, np.zeros((1,int(nsubcarriers-round_int)), dtype=np.complex64)) #fix transposes
-t = np.arange(0,(len(complex_data_vec))/fs, 1/fs)
 
-symbol_mat = np.reshape(complex_data_vec, (nsubcarriers, -1))
-u_n = np.fft.ifft(symbol_mat.T, nsubcarriers)
-u = np.reshape(u_n, -1) #transpose
+complex_data_vec = complex_data_vec_ur
+
+symbol_mat = np.reshape(complex_data_vec, (nsubcarriers-npilot, -1))
+pilot_symbols = np.random.randint(2, size=16)*2 - 1 ## bpsk
+
+for k in np.size(symbol_mat,2):
+    resource_grid = np.zeros(nsubcarriers)
+    resource_grid(1:8:end) = pilot_symbols
+    resource_grid(np.setdiff(1:nsubcarriers,1:8:nsubcarriers)) = symbol_mat[:,k]
+    u_n = np.fft.ifft(resource_grid,nsubcarriers,1)
+    cp = u_n[end-32:end]
+    m[:,k] = np.append(cp,u_n)
+
+u = np.reshape(m,-1)
+pause = np.zeros(np.ceil(delay*fs/sps))
+frame = np.append(pre_symbols, pause)
+frame = np.append(frame, u)
+frame = np.append(frame, pause)
+frame = np.append(frame, pre_symbols)
 
 # Transmit data
-u_upsample = signal.resample(u, int(sps*len(u))) # so technically it repeats each bit 16 times
+u_upsample = signal.resample(frame, int(sps*len(frame))) # so technically it repeats each bit 16 times
 ts = np.arange(0,(len(u_upsample))/fs, 1/fs)
 
-audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts))
+audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts.T))
 #sd.play(audio_signal)
 # Channel simulator
 ## Delay
@@ -71,14 +88,14 @@ rx_upsampled_signal = noise_signal * np.exp(-2*np.pi*fc*1j*ts)
 # baseband_signal = np.resample(rx_upsampled_signal,1,sps)
 baseband_signal = signal.resample(rx_upsampled_signal, int(len(rx_upsampled_signal)/sps))
 ## Delay impairment
-"""
-[r,delay] = np.correlate(baseband_signal,pilot_symbols)
+
+[r,delay] = np.correlate(baseband_signal,pre_symbols)
 r = r[delay>=0]
 delay = delay[delay>=0]
 
 delay_axis = delay/fs
-"""
-baseband_mat = np.reshape(baseband_signal,(-1,nsubcarriers))
+
+baseband_mat = np.reshape(baseband_signal,np.size(u_n))
 post_fft = np.fft.fft(baseband_mat,nsubcarriers).T #baseband_mat
 
 # Repack into symbol stream
