@@ -126,15 +126,14 @@ maxvec = maxk(abs(r),2);
 max_location = find(abs(r) == maxvec(2));
 baseband_signal_adj = baseband_signal(max_location:end); % equivalent to frame
 % strip away unnecessary parts
-rd_bit_len = length(preamble_symbols) + length(pause);
-rx_packet = baseband_signal_adj(rd_bit_len+1:end-rd_bit_len); %equivalent to u
+redudant_bit_len = length(preamble_symbols) + length(pause);
+rx_packet = baseband_signal_adj(redundant_bit_len:end-redundanc
 
-% step backwards from frame creation
+% or, ignore all this and receive it without pilots or channel impairments?
+
 % 1a. Convert to parallel stream
-baseband_mat = reshape(rx_packet,size(m));
-
+baseband_mat = reshape(baseband_signal_adj,size(m));
 % 2. Remove Ng samples (CP or ZP) and feed into DFT
-% requires for loop with resource grid
 post_fft = fft(baseband_mat, nsubcarriers);
 
 %% Repack into symbol stream
