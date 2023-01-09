@@ -135,6 +135,20 @@ baseband_mat = reshape(rx_packet,size(m));
 
 % 2. Remove Ng samples (CP or ZP) and feed into DFT
 % requires for loop with resource grid
+%{
+for k=1:size(symbol_mat,2)
+    resource_grid = zeros(nsubcarriers,1); %evenly spaced symbol and pilot
+    resource_grid(1:8:end) = pilot_symbols;
+    resource_grid(setdiff(1:nsubcarriers,1:8:nsubcarriers)) = symbol_mat(:,k);
+    u_n = ifft(resource_grid,nsubcarriers,1);
+    cp = u_n(end-32:end);
+    m(:,k) = [cp; u_n];
+end
+%}
+for k=1:size(symbol_mat,2)
+    rs_grid_rx = zeros(nsubcarriers,1);
+    rs_grid_rx(1:8:end) = pilot_symbols;
+
 post_fft = fft(baseband_mat, nsubcarriers);
 
 %% Repack into symbol stream
