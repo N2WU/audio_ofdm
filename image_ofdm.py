@@ -95,8 +95,23 @@ delay = delay[delay>=0]
 
 delay_axis = delay/fs
 
-baseband_mat = np.reshape(baseband_signal,np.size(u_n))
-post_fft = np.fft.fft(baseband_mat,nsubcarriers).T #baseband_mat
+maxvec = np.max(np.abs(r),2)
+max_location = np.find(abs(r) == maxvec[1])
+baseband_signal_adj = baseband_signal[max_location:end]
+# Strip away unnecessary parts
+rd_bit_len = len(pre_symbols) + len(pause)
+rx_packet = baseband_signal_adj[rd_bit_len+1:end-rd_bit_len]
+
+# Step backwards from frame creation
+baseband_mat = np.reshape(rx_packet,np.size(m))
+
+eq = 0.416307/0.196317
+for k in range 1,np.size(symbol_mat,2):
+    u_n_rx = baseband_mat[33:end,k]
+    rs_grid_rx = np.fft.fft(u_n_rx,nsubcarriers,1)
+    symbol_mat_rx[:,k] = rs_grid_rx[np.setdiff(1:nsubcarriers,1:8:nsubcarriers)]
+
+post_fft = symbol_mat_rx
 
 # Repack into symbol stream
 rx_symbol_stream = np.reshape(post_fft,-1)

@@ -149,20 +149,23 @@ end
 %    rs_grid_rx = zeros(nsubcarriers,1);
 %    rs_grid_rx(1:8:end) = pilot_symbols;
 
-
+eq = 0.416307/0.196317;
 for k=1:size(symbol_mat,2)
-    u_n_rx = baseband_mat(34:end,k); %strip away cp
-    rs_grid_rx = fft(u_n_rx.',nsubcarriers,1); %fft
+    u_n_rx = baseband_mat(34:end,k) *eq; %strip away cp and "equalize"
+    rs_grid_rx = fft(u_n_rx,nsubcarriers,1); %fft
     symbol_mat_rx(:,k) = rs_grid_rx(setdiff(1:nsubcarriers,1:8:nsubcarriers)); %slot only non-pilots
 end
 
 eq = 0.416307/0.196317;
 figure(1)
-plot(abs(u_n_rx)*eq)
+plot(real(u_n), "+")
 hold on
-plot(abs(u_n))
-legend("rx","tx")
+plot(real(u_n_rx), "o")
 hold off
+title("TX and RX Resource Grid for one Subcarrier")
+legend("TX","RX")
+xlabel("Symbol")
+ylabel("Real Value")
 
 post_fft = fft(baseband_mat, nsubcarriers);
 post_fft = symbol_mat_rx;
