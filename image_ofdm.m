@@ -10,6 +10,7 @@ rng(6);
 
 raw_image = double(imresize(imread("shostakovich_image.png"),[32 28]));
 image_stream = reshape(raw_image.', [], 1);
+
 %image_stream_pad = [image_stream.' zeros((1.4e6 - length(image_stream)), 1).'].';
 
 %% Generate bitstream (S-P Implementation)
@@ -167,7 +168,7 @@ legend("TX","RX")
 xlabel("Symbol")
 ylabel("Real Value")
 
-post_fft = fft(baseband_mat, nsubcarriers);
+%post_fft = fft(baseband_mat, nsubcarriers);
 post_fft = symbol_mat_rx;
 %% Repack into symbol stream
 % 4a. Parallel to serial conversion
@@ -176,6 +177,7 @@ rx_symbol_stream = reshape(post_fft,[],1).';
 %% Repack into bitstream
 % 4ab. Removing zeros
 rx_symbol_stream = rx_symbol_stream(1:length(complex_data_vec_ur)).';
+%rx_symbol_stream = complex_data_vec_ur;
 % some function to turn this into symbols? Just a coherence issue?
 
 % 4b. Symbol Mapping
@@ -184,6 +186,6 @@ rx_image_stream = reshape(rx_symbol_mat.',[],1);%reshape(rx_symbol_mat.', [],1);
 
 %% Format and display image
 
-rx_image = reshape(rx_image_stream, size(raw_image));
-figure(2)
+% gross
+rx_image = reshape(rx_image_stream.', flip(size(raw_image)));
 imshow(rx_image.');
