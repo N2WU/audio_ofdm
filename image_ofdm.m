@@ -118,7 +118,7 @@ r = r(delay>=0);
 delay = delay(delay>=0);
 
 delay_axis = delay/fs;
-plot(delay_axis,abs(r))
+%plot(delay_axis,abs(r))
 
 % Estimation
 % Find the second-largest peak (hand-wave)
@@ -145,12 +145,27 @@ for k=1:size(symbol_mat,2)
     m(:,k) = [cp; u_n];
 end
 %}
+%for k=1:size(symbol_mat,2)
+%    rs_grid_rx = zeros(nsubcarriers,1);
+%    rs_grid_rx(1:8:end) = pilot_symbols;
+
+
 for k=1:size(symbol_mat,2)
-    rs_grid_rx = zeros(nsubcarriers,1);
-    rs_grid_rx(1:8:end) = pilot_symbols;
+    u_n_rx = baseband_mat(34:end,k); %strip away cp
+    rs_grid_rx = fft(u_n_rx.',nsubcarriers,1); %fft
+    symbol_mat_rx(:,k) = rs_grid_rx(setdiff(1:nsubcarriers,1:8:nsubcarriers)); %slot only non-pilots
+end
+
+eq = 0.416307/0.196317;
+figure(1)
+plot(abs(u_n_rx)*eq)
+hold on
+plot(abs(u_n))
+legend("rx","tx")
+hold off
 
 post_fft = fft(baseband_mat, nsubcarriers);
-
+post_fft = symbol_mat_rx;
 %% Repack into symbol stream
 % 4a. Parallel to serial conversion
 rx_symbol_stream = reshape(post_fft,[],1).';
@@ -167,4 +182,5 @@ rx_image_stream = reshape(rx_symbol_mat.',[],1);%reshape(rx_symbol_mat.', [],1);
 %% Format and display image
 
 rx_image = reshape(rx_image_stream, size(raw_image));
+figure(2)
 imshow(rx_image.');
