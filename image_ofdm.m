@@ -106,10 +106,10 @@ rx_signal = [zeroarray; audio_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-%noise_signal = awgn(rx_signal,10);
+noise_signal = awgn(rx_signal,10);
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-noise_signal = rx_signal;
-%% Receive Image
+%noise_signal = rx_signal;
+%% Channel Estimation
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx.'); %t_rx
 baseband_signal = resample(rx_upsampled_signal, 1,sps);
@@ -130,6 +130,13 @@ baseband_signal_adj = baseband_signal(max_location:end); % equivalent to frame
 rd_bit_len = length(preamble_symbols) + length(pause);
 rx_packet = baseband_signal_adj(rd_bit_len+1:end-rd_bit_len); %equivalent to u
 
+% Signal Detection in Presence of noise
+% 1. Identify frequency pilot points
+% 2. Determine value of H(jw)
+% 3. Interpolate across jw to equalize channel
+
+
+%% Receiving modified signal
 % step backwards from frame creation
 % 1a. Convert to parallel stream
 baseband_mat = reshape(rx_packet,size(m));
@@ -150,20 +157,53 @@ end
 %    rs_grid_rx = zeros(nsubcarriers,1);
 %    rs_grid_rx(1:8:end) = pilot_symbols;
 
-eq = 0.416307/0.196317;
+
 for k=1:size(symbol_mat,2)
-    u_n_rx = baseband_mat(34:end,k) *eq; %strip away cp and "equalize"
+    u_n_rx = baseband_mat(34:end,k); %strip away cp and "equalize"
     rs_grid_rx = fft(u_n_rx,nsubcarriers,1); %fft
+    rx_pilots(:,k) = rs_grid_rx(1:8:nsubcarriers);
     symbol_mat_rx(:,k) = rs_grid_rx(setdiff(1:nsubcarriers,1:8:nsubcarriers)); %slot only non-pilots
 end
 
+% Determine channel transfer function from rx_pilots and pilot_symbols
+% Technically, only four iterations
+%{
+for k=1:size(rx_pilots,2)
+    % Get "equalization factor"
+    for m=1:size(rx_pilots,1)
+        eq_fac = pilot_symbols(m)/real(rx_pilots(m,k));
+        % apply it to relevant bits (interpolate)
+        symbol_mat_rx(m*7 - 6:m*7,k) = symbol_mat_rx(m*7 - 6:m*7,k) * eq_fac;
+    end
+end
+%}
+for k=1:size(rx_pilots,2)
+    % Get "equalization factor"
+    eq_vec = abs(pilot_symbols./(rx_pilots(:,k)));
+    % apply it to relevant bits (interpolate)
+    eq_vec_resamp = resample(eq_vec,7,1);
+    symbol_mat_rx(:,k) = symbol_mat_rx(:,k).*eq_vec_resamp;
+end
+
+
+% Try it at a higher level:
+%{
+for k=1:size(rx_pilots,2)
+    % Get "equalization factor"
+    for m=1:size(symbol_mat_rx,1)
+        eq_fac = symbol_mat(m,k)/symbol_mat_rx(m,k);
+        % apply it to relevant bits (interpolate)
+        symbol_mat_rx(m,k) = symbol_mat_rx(m,k) * eq_fac;
+    end
+end
+%}
 eq = 0.416307/0.196317;
 figure(1)
-plot(real(u_n), "+")
+plot(pilot_symbols, "+")
 hold on
-plot(real(u_n_rx), "o")
+plot(1:16,real(rx_pilots(:,4)).*eq_vec, "o")
 hold off
-title("TX and RX Resource Grid for one Subcarrier")
+title("TX and RX Pilots for one Subcarrier")
 legend("TX","RX")
 xlabel("Symbol")
 ylabel("Real Value")
@@ -187,5 +227,6 @@ rx_image_stream = reshape(rx_symbol_mat.',[],1);%reshape(rx_symbol_mat.', [],1);
 %% Format and display image
 
 % gross
+figure(2)
 rx_image = reshape(rx_image_stream.', flip(size(raw_image)));
 imshow(rx_image.');
