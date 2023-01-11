@@ -2,6 +2,13 @@
 clc; clear; close all; clear all;
 rng(6);
 
+%% Load Image
+
+raw_image = double(imresize(imread("shostakovich_image.png"),[32 28]));
+image_stream = reshape(raw_image.', [], 1);
+complex_data_stream = reshape(image_stream, [length(image_stream)/2,2]).*2 - 1;
+complex_data_vec = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqrt(2);
+
 %% OFDM Parameters
 K = 1024; % num carriers
 B = 3e3; % bandwidth

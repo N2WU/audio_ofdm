@@ -84,6 +84,8 @@ s_frame = np.append(s_frame,s_pause)
 s_frame = np.append(s_frame,s_pre)
 s_frame = np.append(s_frame,failsafe)
 
+# sd.play(s_frame)
+
 # Channel Simulator
 hp = [1, 0.5, 0.2]
 taup = 3/343 + [0,0.03,0.07]
