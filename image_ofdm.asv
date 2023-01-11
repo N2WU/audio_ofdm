@@ -106,9 +106,9 @@ rx_signal = [zeroarray; audio_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-noise_signal = awgn(rx_signal,10);
+%noise_signal = awgn(rx_signal,10);
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-%noise_signal = rx_signal;
+noise_signal = rx_signal;
 %% Channel Estimation
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx.'); %t_rx
@@ -167,28 +167,53 @@ end
 
 % Determine channel transfer function from rx_pilots and pilot_symbols
 % Technically, only four iterations
-
+%{
 for k=1:size(rx_pilots,2)
     % Get "equalization factor"
     for m=1:size(rx_pilots,1)
-        eq_fac = pilot_symbols(m)/rx_pilots(m,k);
+        eq_fac = pilot_symbols(m)/real(rx_pilots(m,k));
         % apply it to relevant bits (interpolate)
         symbol_mat_rx(m*7 - 6:m*7,k) = symbol_mat_rx(m*7 - 6:m*7,k) * eq_fac;
     end
 end
+%}
+for k=1:size(rx_pilots,2)
+    % Get "equalization factor"
+    eq_vec = pilot_symbols./real(rx_pilots(:,k));
+    % apply it to relevant bits (interpolate)
+    eq_vec_resamp = resample(eq_vec,7,1);
+    symbol_mat_rx(:,k) = symbol_mat_rx(:,k) .* eq_vec_resamp;
+end
 
 
+% Try it at a higher level:
+%{
+for k=1:size(rx_pilots,2)
+    % Get "equalization factor"
+    for m=1:size(symbol_mat_rx,1)
+        eq_fac = symbol_mat(m,k)/symbol_mat_rx(m,k);
+        % apply it to relevant bits (interpolate)
+        symbol_mat_rx(m,k) = symbol_mat_rx(m,k) * eq_fac;
+    end
+end
+%}
 eq = 0.416307/0.196317;
 figure(1)
-plot(pilot_symbols, "+")
+plot(pilot_symbols,"o")
 hold on
-plot(1:16,rx_pilots(:,1), "o")
+plot(real(rx_pilots(:,1)),"+")
 hold off
-title("TX and RX Pilots for one Subcarrier")
-legend("TX","RX")
+%{
+plot(real(symbol_mat(:,4)), "+")
+hold on
+plot(real(symbol_mat_rx(:,4)./eq_vec_resamp), "o")
+plot(real(symbol_mat_rx(:,4)), "x")
+hold off
+title("TX and RX Symbols for one Subcarrier")
+legend("TX", "RX without Equalization","RX With Equalization")
 xlabel("Symbol")
 ylabel("Real Value")
-
+%}
 %post_fft = fft(baseband_mat, nsubcarriers);
 post_fft = symbol_mat_rx;
 %% Repack into symbol stream

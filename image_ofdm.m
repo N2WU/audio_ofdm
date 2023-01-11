@@ -73,7 +73,8 @@ complex_data_vec = [complex_data_vec_ur]; %.' zeros(nsubcarriers-round_int, 1).'
 
 % 1. divide symbol stream d into k subcarriers
 symbol_mat = reshape(complex_data_vec,nsubcarriers-16,[]);
-pilot_symbols = randi([0 1], 16,1)*2 - 1;
+pilot_bits = randi([0 1], 16,2);
+pilot_symbols = (pilot_bits(:,1) + 1i*pilot_bits(:,2))./sqrt(2);
 % resource_grid = zeros(nsubcarriers,1); %evenly spaced symbol and pilot
 % 2. feed parallel stream and 0s into idft block for n=0->Ns-1
 % u_n = ifft(symbol_mat,nsubcarriers,1);
@@ -106,9 +107,9 @@ rx_signal = [zeroarray; audio_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-noise_signal = awgn(rx_signal,10);
+%noise_signal = awgn(rx_signal,10);
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-%noise_signal = rx_signal;
+noise_signal = rx_signal;
 %% Channel Estimation
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx.'); %t_rx
@@ -179,10 +180,10 @@ end
 %}
 for k=1:size(rx_pilots,2)
     % Get "equalization factor"
-    eq_vec = abs(pilot_symbols./(rx_pilots(:,k)));
+    eq_vec = pilot_symbols./(rx_pilots(:,k));
     % apply it to relevant bits (interpolate)
     eq_vec_resamp = resample(eq_vec,7,1);
-    symbol_mat_rx(:,k) = symbol_mat_rx(:,k).*eq_vec_resamp;
+    symbol_mat_rx(:,k) = symbol_mat_rx(:,k) .* eq_vec_resamp;
 end
 
 
@@ -199,15 +200,21 @@ end
 %}
 eq = 0.416307/0.196317;
 figure(1)
-plot(pilot_symbols, "+")
+plot(pilot_symbols,"o")
 hold on
-plot(1:16,real(rx_pilots(:,4)).*eq_vec, "o")
+plot(real(rx_pilots(:,4).*eq_vec),"+")
 hold off
-title("TX and RX Pilots for one Subcarrier")
-legend("TX","RX")
+%{
+plot(real(symbol_mat(:,4)), "+")
+hold on
+plot(real(symbol_mat_rx(:,4)./eq_vec_resamp), "o")
+plot(real(symbol_mat_rx(:,4)), "x")
+hold off
+title("TX and RX Symbols for one Subcarrier")
+legend("TX", "RX without Equalization","RX With Equalization")
 xlabel("Symbol")
 ylabel("Real Value")
-
+%}
 %post_fft = fft(baseband_mat, nsubcarriers);
 post_fft = symbol_mat_rx;
 %% Repack into symbol stream
