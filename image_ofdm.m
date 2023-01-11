@@ -73,7 +73,7 @@ complex_data_vec = [complex_data_vec_ur]; %.' zeros(nsubcarriers-round_int, 1).'
 
 % 1. divide symbol stream d into k subcarriers
 symbol_mat = reshape(complex_data_vec,nsubcarriers-16,[]);
-pilot_bits = randi([0 1], 16,2);
+pilot_bits = randi([0 1], 16,2).*2 - 1;
 pilot_symbols = (pilot_bits(:,1) + 1i*pilot_bits(:,2))./sqrt(2);
 % resource_grid = zeros(nsubcarriers,1); %evenly spaced symbol and pilot
 % 2. feed parallel stream and 0s into idft block for n=0->Ns-1
@@ -107,9 +107,9 @@ rx_signal = [zeroarray; audio_signal]; %4800 + 48000
 t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-%noise_signal = awgn(rx_signal,10);
+noise_signal = awgn(rx_signal,10);
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-noise_signal = rx_signal;
+%noise_signal = rx_signal;
 %% Channel Estimation
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx.'); %t_rx
@@ -120,12 +120,13 @@ r = r(delay>=0);
 delay = delay(delay>=0);
 
 delay_axis = delay/fs;
-%plot(delay_axis,abs(r))
+figure
+plot(delay_axis,abs(r))
 
 % Estimation
 % Find the second-largest peak (hand-wave)
 maxvec = maxk(abs(r),2);
-max_location = find(abs(r) == maxvec(2));
+max_location = find(abs(r) == maxvec(1));
 baseband_signal_adj = baseband_signal(max_location:end); % equivalent to frame
 % strip away unnecessary parts
 rd_bit_len = length(preamble_symbols) + length(pause);
@@ -198,23 +199,17 @@ for k=1:size(rx_pilots,2)
     end
 end
 %}
-eq = 0.416307/0.196317;
-figure(1)
-plot(pilot_symbols,"o")
-hold on
-plot(real(rx_pilots(:,4).*eq_vec),"+")
-hold off
-%{
+
 plot(real(symbol_mat(:,4)), "+")
 hold on
-plot(real(symbol_mat_rx(:,4)./eq_vec_resamp), "o")
+plot(real(symbol_mat_rx(:,4) ./ eq_vec_resamp), "o")
 plot(real(symbol_mat_rx(:,4)), "x")
 hold off
 title("TX and RX Symbols for one Subcarrier")
 legend("TX", "RX without Equalization","RX With Equalization")
 xlabel("Symbol")
 ylabel("Real Value")
-%}
+
 %post_fft = fft(baseband_mat, nsubcarriers);
 post_fft = symbol_mat_rx;
 %% Repack into symbol stream
