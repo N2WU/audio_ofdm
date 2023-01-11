@@ -77,7 +77,7 @@ audio_signal = np.real(u_upsample * np.exp(1j*fc*2*np.pi*ts.T))
 ## Delay
 delay = 0.1
 zeroarray = np.zeros((1,int(fs*delay)))
-rx_signal = [zeroarray, audio_signal]
+rx_signal = np.append(zeroarray,audio_signal)
 t_rx = np.arange(0,(len(rx_signal))/fs, 1/fs)
 ## Noise
 # noise_signal = np.awgn(rx_signal,10) #has to be fixed later
@@ -107,7 +107,7 @@ baseband_mat = np.reshape(rx_packet,np.size(m))
 
 eq = 0.416307/0.196317
 for k in range 1,np.size(symbol_mat,2):
-    u_n_rx = baseband_mat[33:end,k]
+    u_n_rx = baseband_mat[34:end,k]
     rs_grid_rx = np.fft.fft(u_n_rx,nsubcarriers,1)
     symbol_mat_rx[:,k] = rs_grid_rx[np.setdiff(1:nsubcarriers,1:8:nsubcarriers)]
 
@@ -125,6 +125,6 @@ rx_symbol_mat = np.vstack((rx_symbol_real,rx_symbol_imag))
 rx_image_stream = np.reshape(rx_symbol_mat, -1, order='F')
 
 # Format and display image
-rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
-display_image = pyplot.imshow(rx_image,cmap='gray',interpolation='nearest')
+rx_image = np.reshape(rx_image_stream.T, np.flip(np.shape(raw_image)))
+display_image = pyplot.imshow(rx_image.T,cmap='gray',interpolation='nearest')
 pyplot.show()
