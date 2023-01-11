@@ -103,16 +103,13 @@ audio_signal = real(u_upsample .* exp(1i*fc*2*pi*ts.'));
 % delay
 delay = 1e-1;
 zeroarray = zeros(1,(fs * delay)).';
-rx_signal = [zeroarray; audio_signal; zeroarray]; %4800 + 48000
-
-rx_signal = rx_signal + 0.3*circshift(rx_signal,100);
+rx_signal = [zeroarray; audio_signal]; %4800 + 48000
+t_rx = (0:length(rx_signal) -1)/fs;
 
 % noise
-noise_signal = rx_signal + 0.01*randn(size(rx_signal)); %don't use this
-t_rx = (0:length(noise_signal) -1)/fs;
-% gaussian noise with stdev 0.01
+%noise_signal = awgn(rx_signal,10); %don't use this
 %plot(t_rx(5e3:6e3),noise_signal(5e3:6e3));
-
+noise_signal = rx_signal;
 %% Channel Estimation
 %1. Downshift and convert to parallel streams
 rx_upsampled_signal = noise_signal .* exp(-2*pi*fc*1i*t_rx.'); %t_rx
@@ -124,7 +121,7 @@ delay = delay(delay>=0);
 
 delay_axis = delay/fs;
 figure
-plot(abs(r))
+plot(delay_axis,abs(r))
 
 % Estimation
 % Find the second-largest peak (hand-wave)
@@ -133,7 +130,7 @@ max_location = find(abs(r) == maxvec(2));
 baseband_signal_adj = baseband_signal(max_location:end); % equivalent to frame
 % strip away unnecessary parts
 rd_bit_len = length(preamble_symbols) + length(pause);
-rx_packet = baseband_signal_adj(rd_bit_len+1:rd_bit_len+length(u)); %equivalent to u
+rx_packet = baseband_signal_adj(rd_bit_len+1:end-rd_bit_len); %equivalent to u
 
 % Signal Detection in Presence of noise
 % 1. Identify frequency pilot points
@@ -185,11 +182,10 @@ end
 for k=1:size(rx_pilots,2)
     % Get "equalization factor"
     %eq_vec = pilot_symbols./(rx_pilots);
-    h = rx_pilots(:,k)./pilot_symbols;
-    h= ones(size(h));
+    h = rx_pilots./pilot_symbols;
     % apply it to relevant bits (interpolate)
-    eq_vec_resamp = interp(h,8); %interp (make it a variable)
-    symbol_mat_rx(:,k) = symbol_mat_rx(:,k) ./ eq_vec_resamp(setdiff(1:nsubcarriers,1:8:nsubcarriers));
+    eq_vec_resamp = interp(h,7); %interp (make it a variable)
+    symbol_mat_rx = symbol_mat_rx .* eq_vec_resamp;
 end
 
 
@@ -207,7 +203,7 @@ end
 figure
 plot(real(symbol_mat(:,4)), "+")
 hold on
-plot(real(symbol_mat_rx(:,4) ./ eq_vec_resamp(setdiff(1:nsubcarriers,1:8:nsubcarriers))), "o")
+plot(real(symbol_mat_rx(:,4) ./ eq_vec_resamp(:,4)), "o")
 plot(real(symbol_mat_rx(:,4)), "x")
 hold off
 title("TX and RX Symbols for one Subcarrier")
@@ -234,6 +230,6 @@ rx_image_stream = reshape(rx_symbol_mat.',[],1);%reshape(rx_symbol_mat.', [],1);
 %% Format and display image
 
 % gross
-figure
+figure(2)
 rx_image = reshape(rx_image_stream.', flip(size(raw_image)));
-imagesc(rx_image.');
+imshow(rx_image.');
