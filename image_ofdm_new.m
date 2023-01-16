@@ -78,7 +78,7 @@ s_info = s_info / max(abs(s_info));
 s_frame = [failsafe; s_pre; s_pause; s_info; s_pause; s_pre; failsafe];
 
 %spectrogram(s_frame, kaiser(128,0.5),64,2048,fs,'yaxis');
-% sound(s_frame,fs)
+%sound(s_frame,fs)
 %% Channel Simulator
 %[r,Fs] = audioread('Boston 12.m4a')
 % r = resample(r,fs,Fs);
