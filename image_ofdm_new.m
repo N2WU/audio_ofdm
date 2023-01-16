@@ -4,7 +4,7 @@ rng(6);
 
 %% Load Image
 
-raw_image = double(imresize(imread("shostakovich_image.png"),[32 28]));
+raw_image = double(imresize(imread("shostakovich_image.png"),[84 84]));
 image_stream = reshape(raw_image.', [], 1);
 complex_data_stream = reshape(image_stream, [length(image_stream)/2,2]).*2 - 1;
 complex_data_vec = (complex_data_stream(:,1) + 1i*complex_data_stream(:,2))./sqrt(2);
@@ -40,12 +40,20 @@ data_index = setdiff(1:K,pilot_index);
 
 %% Transmitter
 alphabet = [1+1i, 1-1i, -1+1i, -1-1i]/sqrt(2);
+l_total = length(data_index)*NBlk;
+l_diff = l_total - length(complex_data_vec);
+if l_diff > 0
+    complex_data_vec = [complex_data_vec; (ones(l_diff,1)+1i*ones(l_diff,1))./sqrt(2)];
+end
+image_data_vec = reshape(complex_data_vec, [],NBlk);
 % OFDM Baseband
 % u: tx bb; v: rx bb; s: tx pb; r: rx pb;
 d = zeros(K,NBlk);
+
 u_info = [];
 for i_blk = 1:NBlk
-    d(:,i_blk) = randsample(alphabet,K, 'true');
+    d(pilot_index,i_blk) = randsample(alphabet,length(pilot_index), 'true');
+    d(data_index,i_blk) = image_data_vec(:,NBlk);
     ifft_mod = K*Nsps*ifft(d(:,i_blk),K*Nsps); % rate-matched
     ifft_mod = ifft_mod/abs(max(ifft_mod));
     if is_cp
@@ -87,7 +95,7 @@ r = r + 0.01*randn(size(r));
 
 %% Noise
 % Delay estimation
-v = r.*exp(-1i*2*pi*fc*(0:length(u)-1).'/fs);
+v = r.*exp(-1i*2*pi*fc*(0:length(r)-1).'/fs);
 
 [R,lags] = xcorr(v,u_pre);
 R(lags<0) = [];
@@ -106,13 +114,13 @@ plot(lags(peaks)/fs,R(peaks),'x')
 hold off
 
 %% OFDM Processing
-v = r.*exp(-1i*2*pi*f0*(0:length(u)-1).'/fs);
+v = r.*exp(-1i*2*pi*f0*(0:length(r)-1).'/fs);
 start = peaks(1) + length(u_pre) + Np + 1;
 v_ofdm = v(start+(1:Nf-1));
 
-d_hat = zeros(K,Nblk);
-for i_blk = 1:Nblk
-    v_blk_cp = v_ofdm((i_blk-1)*Nb+1:i_blk*Nb);
+d_hat = zeros(K,NBlk);
+for i_blk = 1:NBlk
+    v_blk_cp = v_ofdm((i_blk-1)*Nb+1:i_blk*Nb - 1);
     if is_cp
         v_blk = v_blk_cp(Ng+1:end);
     else
@@ -123,7 +131,7 @@ for i_blk = 1:Nblk
     y_blk = y_blk(1:K);
 
     H_est = y_blk(pilot_index) ./ d(pilot_index,i_blk);
-    H_interp = interp(H_est,K/length(pilot));
+    H_interp = interp(H_est,K/length(pilot_index));
     % H_interp = circshift(y_blk,1);
 
     d_hat(:,i_blk) = y_blk ./ H_interp; 
@@ -137,6 +145,17 @@ scatterplot(d_hat(:));
 
 ber  = sum(abs(bits_tx-bits_rx), "all") / numel(bits_rx);
 
+%% Unpack RX Bits
+
+bits_rx_vec = reshape(bits_rx, [],1);
+rx_image_stream = bits_rx_vec(1:length(image_stream)); % remove non-image zeros
+
+figure
+rx_image = reshape(rx_image_stream, (size(raw_image)));
+imagesc(rx_image.');
+
+figure
+imagesc(raw_image);
 function b = decision(d)
     % d is a vector of qpsk symbols
     b = [sign(real(d)), sign(imag(d))];
