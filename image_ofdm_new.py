@@ -23,7 +23,7 @@ def decision(d):
      return b
 
 # Load image
-img = Image.open('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image.png')
+img = Image.open('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png')
 ## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png
 ## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image.png
 img_resize = img.resize((84, 84),Image.LANCZOS)
@@ -54,7 +54,8 @@ Nb = Nsps*K + Ng
 Nf = Nb*NBlk
 
 Nbits = 7
-preamble = np.random.randint(2, size=2^Nbits - 1) * 2 - 1
+preamble = np.random.randint(2, size=((2**Nbits) - 1)) * 2 - 1
+print("preamble is", preamble)
 
 pilot_index = np.arange(0,K-1,8)
 data_index = np.setdiff1d(np.arange(0,K-1),pilot_index)
@@ -69,104 +70,114 @@ image_data_vec = np.reshape(complex_data_vec,(-1,4))
 d = np.zeros([K,NBlk])
 
 u_info = []
-for i_blk in range(0,NBlk-1):
+for i_blk in range(0,NBlk):
     d[pilot_index,i_blk] = np.random.choice(alphabet,len(pilot_index),replace=True)
     d[data_index,i_blk] = image_data_vec[:,i_blk]
     ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],int(K*Nsps))
     ifft_mod = ifft_mod/abs(max(ifft_mod))
     if is_cp:
-        cp = ifft_mod[len(ifft_mod)-Ng+1:-1]
-        u_info = np.append(u_info,cp)
-        u_info = np.append(u_info, ifft_mod)
+        cp = ifft_mod[len(ifft_mod)-Ng:-1] #eliminated 1-index
+        u_info = np.concatenate((u_info, cp, ifft_mod))
     else:
         zp = np.zeros(Ng)
-        u_info = np.append(u_info,ifft_mod)
-        u_info = np.append(u_info, zp)
+        u_info = np.concatenate((u_info,ifft_mod,zp))
+        #u_info = np.append(u_info, zp)
 
 ## Preamble Baseband ZERO-INDEX
 u_pre = signal.resample(preamble, int(Nsps*len(preamble)))
-t_pre = np.arange(0,len(u_pre)-1)/fs
+t_pre = np.arange(0,len(u_pre))/fs
 s_pre = np.real(u_pre * np.exp(1j*2*np.pi*fc*t_pre.T))
 s_pre = s_pre / max(abs(u_info))
 
 ## Generate Baseband
-s_pause = np.zeros(Np,1)
-failsafe = np.zeros(0.1*fs,1)
-t_info = np.arange(0,len(u_info)-1)/fs
+s_pause = np.zeros(Np)
+failsafe = np.zeros(int(0.1*fs))
+t_info = np.arange(0,len(u_info))/fs
+print("u_info is, ", np.size(u_info))
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
 s_info = s_info / max(abs(s_info))
+print("s_info is, ", np.size(s_info))
 s_frame = np.append(s_pre,failsafe)
 s_frame = np.append(s_frame,s_pause)
 s_frame = np.append(s_frame,s_info)
 s_frame = np.append(s_frame,s_pause)
 s_frame = np.append(s_frame,s_pre)
 s_frame = np.append(s_frame,failsafe)
+print("s_frame is, ", np.size(s_frame))
 
 # sd.play(s_frame)
 
 # Channel Simulator
 hp = [1, 0.5, 0.2]
-taup = 3/343 + [0,0.03,0.07]
+taup = 3/343 + np.array([0,0.03,0.07])
 P = len(hp)
 
 r = np.zeros(np.size(s_frame))
 for p in range(1,P):
-    r = r+hp[p]*np.roll(s_frame,np.ceil(taup[p]*fs))
+    r = r+hp[p]*np.roll(np.array(s_frame),int(np.ceil(taup[p]*fs)))
 
 r = r + 0.01*np.random.randn(np.size(r))
 
 # Estimation
 ## Delay
-t_u = np.arange(0,len(u)-1)/fs
-v = r * np.exp(-1j*2*np.pi*fc*t_u.T)
+t_r = np.arange(0,len(r))/fs
+v = r * np.exp(-1j*2*np.pi*fc*t_r.T)
 
-[R,lags] = np.correlate(v,u_pre)
-R[lags<0] = []
-lags[lags<0] = []
+R = signal.correlate(v,u_pre)
 
-R = abs(R)
-R = R / max(R)
+lags = signal.correlation_lags(len(v),len(u_pre))
+R = R[np.argwhere(lags<0)]
+lags = np.array([x for x in lags if x < 0])
 
-peaks = signal.find_peaks(R,0.7) ## sketchy
+R = R.flatten()
+R = np.absolute(R)
+R = R / np.amax(R)
 
+peaks, _ = signal.find_peaks(R,0.7) ## sketchy
 # OFDM Processing
-v = r*np.exp(-1j*2*np.pi*f0*t_u.T)
-start = peaks[0] + len(u_pre) + Np + 1
-v_vec = np.arange(1,Nf-1)
-v_ofdm = v[start + v_vec]
+v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
+start = peaks[0] + len(u_pre) + Np # + 1
+v_vec = np.arange(0,Nf) + start
+print(v_vec)
+print(len(v_vec))
+print(len(v))
+v_ofdm = v[v_vec.astype(int)]
 
-d_hat = np.zeros(K,NBlk)
-for i_blk in range(1,NBlk):
-    v_blk_cp = v_ofdm[(i_blk-1)*Nb+1:i_blk*Nb]
+d_hat = np.zeros((K,NBlk))
+for i_blk in range(0,NBlk):
+    v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb-2)
+    v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
     if is_cp:
         v_blk = v_blk_cp[1:Ng] + v_blk[len(v_blk)-Ng+1:-1]
     else:
         v_blk = v_blk_cp
-        v_blk[1:Ng] = v_blk[1:Ng] + v_blk[len(v_blk)-Ng+1:-1]
-    y_blk = np.fft.fft(v_blk,K*Nsps)
-    y_blk = y_blk[1:K]
+        v_blk[1:Ng] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
+    y_blk = np.fft.fft(v_blk,int(K*Nsps))
+    y_blk = y_blk[0:K]
 
     H_est = y_blk[pilot_index] / d[pilot_index,i_blk]
-    H_interp = np.interp(H_est,K/len(pilot_index))
+    H_indices = np.arange(len(H_est))
+    H_vals = np.arange(K)
+    H_interp = np.interp(H_vals,H_indices,H_est)
 
     d_hat[:,i_blk] = y_blk / H_interp
 
 d_hat_data = d_hat[data_index,:]
 d_data = d[data_index,:]
-bits_tx = decision(d_data)
-bits_rx = decision(d_hat_data)
+bits_tx = np.array(decision(d_data))
+bits_rx = np.array(decision(d_hat_data))
 
 ber = np.sum(abs(bits_tx-bits_rx)) / bits_rx.size
 
 # Unpack RX Bits
 bits_rx_vec = np.reshape(bits_rx, -1)
 l_t = len(bits_rx_vec)
-ones_index_a = np.arange(l_t/2-l_diff + 1, l_t/2)
-ones_index_b = np.arange(l_t-l_diff + 1, l_t)
+ones_index_a = np.arange(l_t/2-l_diff, l_t/2)
+ones_index_b = np.arange(l_t-l_diff, l_t)
 ones_index = np.append(ones_index_a,ones_index_b) 
-image_index = np.setdiff1d(np.arange(1,l_t),ones_index)
+image_index = np.setdiff1d(np.arange(0,l_t),ones_index)
 
 rx_image_stream = bits_rx_vec[image_index]
-rx_image = reshape(rx_image_stream, np.size(raw_image))
+rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
 display_image = pyplot.imshow(rx_image.T,cmap='gray',interpolation='nearest')
 pyplot.show()
