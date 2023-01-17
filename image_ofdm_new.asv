@@ -51,10 +51,9 @@ image_data_vec = reshape(complex_data_vec, [],NBlk);
 d = zeros(K,NBlk);
 
 u_info = [];
-
 for i_blk = 1:NBlk
     d(pilot_index,i_blk) = randsample(alphabet,length(pilot_index), 'true');
-    d(data_index,i_blk) = image_data_vec(:,i_blk);
+    d(data_index,i_blk) = image_data_vec(:,NBlk);
     ifft_mod = K*Nsps*ifft(d(:,i_blk),K*Nsps); % rate-matched
     ifft_mod = ifft_mod/abs(max(ifft_mod));
     if is_cp
@@ -140,23 +139,24 @@ end
 
 d_hat_data = d_hat(data_index,:);
 d_data = d(data_index,:);
-bits_tx = decision(reshape(d_data,[],1));
+bits_tx = decision(d_data(:));
 bits_rx = decision(d_hat_data(:));
+true_bits = decision(complex_data_vec(:));
 scatterplot(d_hat(:));
 
 ber  = sum(abs(bits_tx-bits_rx), "all") / numel(bits_rx);
 
 %% Unpack RX Bits
 
-bits_rx_vec = reshape(bits_rx, [],1);
+bits_rx_vec = reshape(true_bits, [],1);
 l_t = length(bits_rx_vec);
-ones_index = [l_t/2-l_diff+1:l_t/2; l_t-l_diff+1:l_t];
-image_index =  setdiff(1:l_t,ones_index);
+ones_index = [l_t/2-l_diff:l_t/2; l_t-l_diff+1:l_t];
+image_index =  [1:l_t/2 - l_diff; l_t/2 + 1:l_t-l_diff];
 
 rx_image_stream = bits_rx_vec(image_index);% remove non-image zeros
 
 figure
-rx_image = reshape(rx_image_stream, size(raw_image));
+rx_image = reshape(rx_image_stream.', flip(size(raw_image)));
 imagesc(rx_image.');
 
 function b = decision(d)
