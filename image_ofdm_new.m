@@ -140,7 +140,7 @@ end
 
 d_hat_data = d_hat(data_index,:);
 d_data = d(data_index,:);
-bits_tx = decision(reshape(d_data,[],1));
+bits_tx = decision(d_data(:));
 bits_rx = decision(d_hat_data(:));
 scatterplot(d_hat(:));
 

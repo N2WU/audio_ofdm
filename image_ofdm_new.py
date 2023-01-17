@@ -12,15 +12,28 @@
 import numpy as np
 
 from matplotlib import image
+from PIL import Image
 from matplotlib import pyplot
 
 from scipy import signal
 import sounddevice as sd
 
+def decision(d):
+     b = [np.sign(np.real(d)), np.sign(np.imag(d))]
+     return b
+
 # Load image
-raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png'))
+img = Image.open('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image.png')
+## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png
+## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image.png
+img_resize = img.resize((84, 84),Image.LANCZOS)
+raw_image = np.array(img_resize)
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
+complex_data_stream = np.reshape(image_stream, (-1, 2))*2 - 1
+complex_data_vec = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.sqrt(2)
+
+
 
 # Parameters
 K = 1024
@@ -34,8 +47,8 @@ is_cp = False
 Tg = 0.032
 Tp = Tg*2
 NBlk = 4
-Ng = np.ceil(Tg*fs)
-Np = np.ceil(Tp*fs)
+Ng = int(np.ceil(Tg*fs))
+Np = int(np.ceil(Tp*fs))
 Nsps = fs/B
 Nb = Nsps*K + Ng
 Nf = Nb*NBlk
@@ -43,29 +56,34 @@ Nf = Nb*NBlk
 Nbits = 7
 preamble = np.random.randint(2, size=2^Nbits - 1) * 2 - 1
 
-K_vec = np.arange(1,K)
-pilot_index = K_vec[::8]
-data_index = np.setdiff1d(K_vec,pilot_index)
+pilot_index = np.arange(0,K-1,8)
+data_index = np.setdiff1d(np.arange(0,K-1),pilot_index)
 
 # Transmitter
 alphabet = [1+1j,1-1j,-1+1j,-1-1j]/np.sqrt(2)
+l_total = len(data_index)*NBlk
+l_diff = l_total - len(complex_data_vec)
+if l_diff > 0:
+    complex_data_vec = np.append(complex_data_vec, (np.ones(l_diff) + 1j*np.ones(l_diff))/np.sqrt(2))
+image_data_vec = np.reshape(complex_data_vec,(-1,4))
 d = np.zeros([K,NBlk])
 
 u_info = []
-for i_blk in range(1,NBlk):
-    d[:,i_blk] = np.random.choice(alphabet,K,replace=True)
-    ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],K*Nsps)
+for i_blk in range(0,NBlk-1):
+    d[pilot_index,i_blk] = np.random.choice(alphabet,len(pilot_index),replace=True)
+    d[data_index,i_blk] = image_data_vec[:,i_blk]
+    ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],int(K*Nsps))
     ifft_mod = ifft_mod/abs(max(ifft_mod))
     if is_cp:
         cp = ifft_mod[len(ifft_mod)-Ng+1:-1]
         u_info = np.append(u_info,cp)
         u_info = np.append(u_info, ifft_mod)
     else:
-        zp = np.zeros(Ng,1)
+        zp = np.zeros(Ng)
         u_info = np.append(u_info,ifft_mod)
         u_info = np.append(u_info, zp)
 
-## Preamble Baseband
+## Preamble Baseband ZERO-INDEX
 u_pre = signal.resample(preamble, int(Nsps*len(preamble)))
 t_pre = np.arange(0,len(u_pre)-1)/fs
 s_pre = np.real(u_pre * np.exp(1j*2*np.pi*fc*t_pre.T))
@@ -135,4 +153,20 @@ for i_blk in range(1,NBlk):
 
 d_hat_data = d_hat[data_index,:]
 d_data = d[data_index,:]
+bits_tx = decision(d_data)
+bits_rx = decision(d_hat_data)
 
+ber = np.sum(abs(bits_tx-bits_rx)) / bits_rx.size
+
+# Unpack RX Bits
+bits_rx_vec = np.reshape(bits_rx, -1)
+l_t = len(bits_rx_vec)
+ones_index_a = np.arange(l_t/2-l_diff + 1, l_t/2)
+ones_index_b = np.arange(l_t-l_diff + 1, l_t)
+ones_index = np.append(ones_index_a,ones_index_b) 
+image_index = np.setdiff1d(np.arange(1,l_t),ones_index)
+
+rx_image_stream = bits_rx_vec[image_index]
+rx_image = reshape(rx_image_stream, np.size(raw_image))
+display_image = pyplot.imshow(rx_image.T,cmap='gray',interpolation='nearest')
+pyplot.show()
