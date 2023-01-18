@@ -145,7 +145,7 @@ for i_blk in range(0,NBlk):
         v_blk = v_blk_cp[1:Ng] + v_blk[len(v_blk)-Ng+1:-1]
     else:
         v_blk = v_blk_cp
-        v_blk[0:Ng-1] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
+        v_blk[0:Ng] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
     y_blk = np.fft.fft(v_blk,int(K*Nsps))
     y_blk = y_blk[0:K]
 
