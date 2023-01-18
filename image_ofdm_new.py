@@ -12,28 +12,25 @@
 import numpy as np
 
 from matplotlib import image
-from PIL import Image
 from matplotlib import pyplot
 
 from scipy import signal
 import sounddevice as sd
 
 def decision(d):
+     d = np.reshape(d,-1)
      b = [np.sign(np.real(d)), np.sign(np.imag(d))]
      return b
 
 # Load image
-img = Image.open('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png')
-## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image.png
-## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image.png
-img_resize = img.resize((84, 84),Image.LANCZOS)
-raw_image = np.array(img_resize)
+## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
+## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
+raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+raw_image = raw_image[:,:,2]
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
 complex_data_stream = np.reshape(image_stream, (-1, 2))*2 - 1
 complex_data_vec = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.sqrt(2)
-
-
 
 # Parameters
 K = 1024
@@ -55,7 +52,7 @@ Nf = Nb*NBlk
 
 Nbits = 7
 preamble = np.random.randint(2, size=((2**Nbits) - 1)) * 2 - 1
-print("preamble is", preamble)
+#print("preamble is", preamble)
 
 pilot_index = np.arange(0,K-1,8)
 data_index = np.setdiff1d(np.arange(0,K-1),pilot_index)
@@ -67,7 +64,7 @@ l_diff = l_total - len(complex_data_vec)
 if l_diff > 0:
     complex_data_vec = np.append(complex_data_vec, (np.ones(l_diff) + 1j*np.ones(l_diff))/np.sqrt(2))
 image_data_vec = np.reshape(complex_data_vec,(-1,4))
-d = np.zeros([K,NBlk])
+d = np.zeros([K,NBlk],dtype=np.complex64)
 
 u_info = []
 for i_blk in range(0,NBlk):
@@ -93,17 +90,17 @@ s_pre = s_pre / max(abs(u_info))
 s_pause = np.zeros(Np)
 failsafe = np.zeros(int(0.1*fs))
 t_info = np.arange(0,len(u_info))/fs
-print("u_info is, ", np.size(u_info))
+#print("u_info is, ", np.size(u_info))
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
 s_info = s_info / max(abs(s_info))
-print("s_info is, ", np.size(s_info))
+#print("s_info is, ", np.size(s_info))
 s_frame = np.append(s_pre,failsafe)
 s_frame = np.append(s_frame,s_pause)
 s_frame = np.append(s_frame,s_info)
 s_frame = np.append(s_frame,s_pause)
 s_frame = np.append(s_frame,s_pre)
 s_frame = np.append(s_frame,failsafe)
-print("s_frame is, ", np.size(s_frame))
+#print("s_frame is, ", np.size(s_frame))
 
 # sd.play(s_frame)
 
@@ -138,12 +135,12 @@ peaks, _ = signal.find_peaks(R,0.7) ## sketchy
 v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
 start = peaks[0] + len(u_pre) + Np # + 1
 v_vec = np.arange(0,Nf) + start
-print(v_vec)
-print(len(v_vec))
-print(len(v))
+#print(v_vec)
+#print(len(v_vec))
+#print(len(v))
 v_ofdm = v[v_vec.astype(int)]
 
-d_hat = np.zeros((K,NBlk))
+d_hat = np.zeros((K,NBlk),dtype=np.complex64)
 for i_blk in range(0,NBlk):
     v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb-2)
     v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
@@ -170,14 +167,15 @@ bits_rx = np.array(decision(d_hat_data))
 ber = np.sum(abs(bits_tx-bits_rx)) / bits_rx.size
 
 # Unpack RX Bits
-bits_rx_vec = np.reshape(bits_rx, -1)
+bits_rx_vec = np.reshape(bits_rx, -1,order='F')
 l_t = len(bits_rx_vec)
-ones_index_a = np.arange(l_t/2-l_diff, l_t/2)
-ones_index_b = np.arange(l_t-l_diff, l_t)
-ones_index = np.append(ones_index_a,ones_index_b) 
+#ones_index_a = np.arange(l_t/2-l_diff, l_t/2)
+#ones_index_b = np.arange(l_t-l_diff, l_t)
+#ones_index = np.append(ones_index_a,ones_index_b) 
+ones_index = np.arange(l_t - l_diff*2,l_t) #something to check out
 image_index = np.setdiff1d(np.arange(0,l_t),ones_index)
 
 rx_image_stream = bits_rx_vec[image_index]
 rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
-display_image = pyplot.imshow(rx_image.T,cmap='gray',interpolation='nearest')
+display_image = pyplot.imshow(rx_image,cmap='gray',interpolation='nearest')
 pyplot.show()
