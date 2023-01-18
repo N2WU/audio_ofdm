@@ -25,7 +25,8 @@ def decision(d):
 # Load image
 ## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
 ## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
-raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+#raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
 raw_image = raw_image[:,:,2]
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
@@ -54,8 +55,8 @@ Nbits = 7
 preamble = np.random.randint(2, size=((2**Nbits) - 1)) * 2 - 1
 #print("preamble is", preamble)
 
-pilot_index = np.arange(0,K-1,8)
-data_index = np.setdiff1d(np.arange(0,K-1),pilot_index)
+pilot_index = np.arange(0,K,8)
+data_index = np.setdiff1d(np.arange(0,K),pilot_index)
 
 # Transmitter
 alphabet = [1+1j,1-1j,-1+1j,-1-1j]/np.sqrt(2)
@@ -94,12 +95,7 @@ t_info = np.arange(0,len(u_info))/fs
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
 s_info = s_info / max(abs(s_info))
 #print("s_info is, ", np.size(s_info))
-s_frame = np.append(s_pre,failsafe)
-s_frame = np.append(s_frame,s_pause)
-s_frame = np.append(s_frame,s_info)
-s_frame = np.append(s_frame,s_pause)
-s_frame = np.append(s_frame,s_pre)
-s_frame = np.append(s_frame,failsafe)
+s_frame = np.concatenate((failsafe,s_pre,s_pause,s_info,s_pause,s_pre,failsafe))
 #print("s_frame is, ", np.size(s_frame))
 
 # sd.play(s_frame)
@@ -110,7 +106,7 @@ taup = 3/343 + np.array([0,0.03,0.07])
 P = len(hp)
 
 r = np.zeros(np.size(s_frame))
-for p in range(1,P):
+for p in range(0,P):
     r = r+hp[p]*np.roll(np.array(s_frame),int(np.ceil(taup[p]*fs)))
 
 r = r + 0.01*np.random.randn(np.size(r))
@@ -139,16 +135,17 @@ v_vec = np.arange(0,Nf) + start
 #print(len(v_vec))
 #print(len(v))
 v_ofdm = v[v_vec.astype(int)]
+v_ofdm = s_info
 
 d_hat = np.zeros((K,NBlk),dtype=np.complex64)
 for i_blk in range(0,NBlk):
-    v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb-2)
+    v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb)
     v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
     if is_cp:
         v_blk = v_blk_cp[1:Ng] + v_blk[len(v_blk)-Ng+1:-1]
     else:
         v_blk = v_blk_cp
-        v_blk[1:Ng] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
+        v_blk[0:Ng-1] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
     y_blk = np.fft.fft(v_blk,int(K*Nsps))
     y_blk = y_blk[0:K]
 
@@ -158,7 +155,7 @@ for i_blk in range(0,NBlk):
     H_interp = np.interp(H_vals,H_indices,H_est)
 
     d_hat[:,i_blk] = y_blk / H_interp
-
+print("ofdm incidecs length, ",len(v_ofdm_indices))
 d_hat_data = d_hat[data_index,:]
 d_data = d[data_index,:]
 bits_tx = np.array(decision(d_data))
