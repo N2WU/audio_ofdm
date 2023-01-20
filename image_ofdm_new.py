@@ -25,8 +25,8 @@ def decision(d):
 # Load image
 ## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
 ## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
-#raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
-raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+#raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
 raw_image = raw_image[:,:,2]
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
@@ -113,7 +113,7 @@ r = r + 0.01*np.random.randn(np.size(r))
 
 # Estimation
 ## Delay
-t_r = np.arange(0,len(r))/fs
+t_r = np.arange(len(r))/fs
 v = r * np.exp(-1j*2*np.pi*fc*t_r.T)
 
 R = signal.correlate(v,u_pre)
@@ -142,10 +142,10 @@ for i_blk in range(0,NBlk):
     v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb)
     v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
     if is_cp:
-        v_blk = v_blk_cp[1:Ng] + v_blk[len(v_blk)-Ng+1:-1]
+        v_blk = v_blk_cp[0:Ng] + v_blk[-Ng:]
     else:
         v_blk = v_blk_cp
-        v_blk[0:Ng] = v_blk[0:Ng-1] + v_blk[len(v_blk)-Ng:-1]
+        v_blk[0:Ng] = v_blk[0:Ng] + v_blk[-Ng:]
     y_blk = np.fft.fft(v_blk,int(K*Nsps))
     y_blk = y_blk[0:K]
 
