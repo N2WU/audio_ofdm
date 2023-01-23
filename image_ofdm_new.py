@@ -15,6 +15,7 @@ from matplotlib import image
 from matplotlib import pyplot
 
 from scipy import signal
+from scipy.signal import max_len_seq as mls
 import sounddevice as sd
 
 def decision(d):
@@ -37,12 +38,12 @@ complex_data_vec = (complex_data_stream[:,0] + 1j*complex_data_stream[:,1])/np.s
 
 # Parameters
 K = 1024
-B = 3000
-f0 = 10000
+B = 1000
+f0 = 5000
 fc = f0 + B/2
 fs = 48000
 
-is_cp = False
+is_cp = True
 
 Tg = 0.032
 Tp = Tg*2
@@ -55,6 +56,7 @@ Nf = Nb*NBlk
 
 Nbits = 7
 preamble = np.random.randint(2, size=((2**Nbits) - 1)) * 2 - 1
+preamble = mls(8,taps=[8,7,2,1,0])[0] * 2 - 1
 #print("preamble is", preamble)
 
 pilot_index = np.arange(0,K,8)
@@ -74,7 +76,7 @@ for i_blk in range(0,NBlk):
     d[pilot_index,i_blk] = np.random.choice(alphabet,len(pilot_index),replace=True)
     d[data_index,i_blk] = image_data_vec[:,i_blk]
     ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],int(K*Nsps))
-    ifft_mod = ifft_mod/np.abs(np.max(ifft_mod))
+    ifft_mod = ifft_mod/np.max(np.abs(ifft_mod))
     if is_cp:
         cp = ifft_mod[-Ng:] #eliminated 1-index
         u_info = np.concatenate((u_info, cp, ifft_mod))
@@ -91,7 +93,7 @@ s_pre = s_pre / np.max(np.abs(s_pre))
 
 ## Generate Baseband
 s_pause = np.zeros(Np)
-failsafe = np.zeros(int(0.1*fs))
+failsafe = np.zeros(int(1*fs))
 t_info = np.arange(len(u_info))/fs
 #print("u_info is, ", np.size(u_info))
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
@@ -99,24 +101,30 @@ s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
 s_info = s_info / np.max(np.abs(s_info))
 s_frame = np.concatenate((failsafe,s_pre,s_pause,s_info,s_pause,s_pre,failsafe))
 #print("s_frame is, ", np.size(s_frame))
-
-# sd.play(s_frame)
+s_frame /= np.max(np.abs(s_frame))
+s_frame = s_frame[:,None]
+r = sd.playrec(s_frame,fs,channels=1,blocking=True).squeeze()
 
 # Channel Simulator
-hp = [1, 0.5, 0.2]
-taup = 3/343 + np.array([0,0.003,0.007])
-P = len(hp)
+# hp = [1, 0.5, 0.2]
+# taup = 3/343 + np.array([0,0.003,0.007])
+# P = len(hp)
 
-r = np.zeros(np.size(s_frame))
-for p in range(0,P):
-    r = r+hp[p]*np.roll(np.array(s_frame),int(np.ceil(taup[p]*fs)))
-
-r = r + 0.01*np.random.randn(np.size(r))
+# r = np.zeros(np.size(s_frame))
+# #r = s_frame
+# for p in range(0,P):
+#     r = r+hp[p]*np.roll(np.array(s_frame),int(np.ceil(taup[p]*fs)))
+# print("Variance is", np.var(r))
+# sig_pwr = np.sum(np.abs(r)**2) / len(r)
+# snr_db = 100
+# noise_pwr = sig_pwr / 10**(snr_db/10)
+# r = r + np.sqrt(noise_pwr)*np.random.randn(np.size(r))
+# print("Noise PWR", noise_pwr, "Signal PWR", sig_pwr)
 
 # Estimation
 ## Delay
 t_r = np.arange(len(r))/fs
-r = s_frame.copy()
+#r = s_frame.copy()
 
 # pyplot.figure()
 # f, t, Sxx = signal.spectrogram(r, fs)
@@ -141,21 +149,26 @@ peaks, _ = signal.find_peaks(R,0.7) ## sketchy
 pyplot.figure()
 pyplot.plot(lags[peaks],R[peaks],"x")
 pyplot.plot(lags,R)
+pyplot.show()
 # OFDM Processing
 v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
-start = peaks[0] + len(u_pre) + Np # + 1
+start = peaks[0] + Np + 1 # len(u_pre) + Np #1
 v_vec = np.arange(Nf) + start
 #print(v_vec)
 #print(len(v_vec))
 #print(len(v))
 v_ofdm = v[v_vec.astype(int)]
+l = 64
+f_kk = np.fft.fft(np.eye(K))
+f_kl = np.concatenate((f_kk[:,:int(l/2)],f_kk[:,-int(l/2):]),axis=1)
+f_kpl = f_kl[pilot_index, :]
 
 d_hat = np.zeros((K,NBlk),dtype=np.complex64)
 for i_blk in range(0,NBlk):
     v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb)
     v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
     if is_cp:
-        v_blk = v_blk_cp[0:Ng] + v_blk[-Ng:] #this is incorrect
+        v_blk = v_blk_cp[Ng:] #this is correct
     else:
         v_blk = v_blk_cp
         v_blk[0:Ng] = v_blk[0:Ng] + v_blk[-Ng:]
@@ -163,14 +176,18 @@ for i_blk in range(0,NBlk):
     y_blk = y_blk[0:K]
 
     H_est = y_blk[pilot_index] / d[pilot_index,i_blk]
+    bl = 1/len(pilot_index) * f_kpl.conj().T@H_est
+    # H_est = np.roll(y_blk,1).conj()
     H_indices = np.arange(len(H_est))
     H_vals = np.arange(K)
     H_interp = np.interp(H_vals,H_indices,H_est)
+    H_interp = f_kl@bl
 
     d_hat[:,i_blk] = y_blk / H_interp
+    # d_hat[:,i_blk] = y_blk / H_est
+
 print("v_blk length",len(v_blk[-Ng:]))
 d_hat_data = d_hat[data_index,:]
-pyplot.plot(np.real(d_hat_data).flatten(), np.imag(d_hat_data).flatten(),".")
 d_data = d[data_index,:]
 bits_tx = np.array(decision(d_data))
 bits_rx = np.array(decision(d_hat_data))
@@ -189,5 +206,12 @@ image_index = np.setdiff1d(np.arange(l_t),ones_index)
 rx_image_stream = bits_rx_vec[image_index]
 rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
 pyplot.figure()
+pyplot.subplot(1,2,1)
+pyplot.plot(np.real(d_hat.flatten()), np.imag(d_hat.flatten()),".")
+pyplot.axis([-1.5, 1.5, -1.5, 1.5])
+pyplot.subplot(1,2,2)
 display_image = pyplot.imshow(rx_image,cmap='gray',interpolation='nearest')
+pyplot.tight_layout()
+pyplot.figure()
+pyplot.plot(np.abs(bl))
 pyplot.show()
