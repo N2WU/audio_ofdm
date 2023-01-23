@@ -96,7 +96,6 @@ r = r + 0.01*randn(size(r));
 
 %% Noise
 % Delay estimation
-r = s_frame;
 v = r.*exp(-1i*2*pi*fc*(0:length(r)-1).'/fs);
 
 [R,lags] = xcorr(v,u_pre);
@@ -116,12 +115,11 @@ plot(lags(peaks)/fs,R(peaks),'x')
 hold off
 
 %% OFDM Processing
-
 v = r.*exp(-1i*2*pi*f0*(0:length(r)-1).'/fs);
 start = peaks(1) + length(u_pre) + Np + 1;
 v_ofdm = v(start+(1:Nf-1));
 
-d_hat = zeros(K,NBlk);
+d_hat = zeros(K,NBlk);s
 for i_blk = 1:NBlk
     v_blk_cp = v_ofdm((i_blk-1)*Nb+1:i_blk*Nb - 1);
     if is_cp

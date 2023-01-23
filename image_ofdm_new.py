@@ -56,7 +56,7 @@ preamble = np.random.randint(2, size=((2**Nbits) - 1)) * 2 - 1
 #print("preamble is", preamble)
 
 pilot_index = np.arange(0,K,8)
-data_index = np.setdiff1d(np.arange(0,K),pilot_index)
+data_index = np.setdiff1d(np.arange(K),pilot_index)
 
 # Transmitter
 alphabet = [1+1j,1-1j,-1+1j,-1-1j]/np.sqrt(2)
@@ -74,7 +74,7 @@ for i_blk in range(0,NBlk):
     ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],int(K*Nsps))
     ifft_mod = ifft_mod/abs(max(ifft_mod))
     if is_cp:
-        cp = ifft_mod[len(ifft_mod)-Ng:-1] #eliminated 1-index
+        cp = ifft_mod[-Ng:] #eliminated 1-index
         u_info = np.concatenate((u_info, cp, ifft_mod))
     else:
         zp = np.zeros(Ng)
@@ -83,18 +83,18 @@ for i_blk in range(0,NBlk):
 
 ## Preamble Baseband ZERO-INDEX
 u_pre = signal.resample(preamble, int(Nsps*len(preamble)))
-t_pre = np.arange(0,len(u_pre))/fs
+t_pre = np.arange(len(u_pre))/fs
 s_pre = np.real(u_pre * np.exp(1j*2*np.pi*fc*t_pre.T))
 s_pre = s_pre / max(abs(u_info))
 
 ## Generate Baseband
 s_pause = np.zeros(Np)
 failsafe = np.zeros(int(0.1*fs))
-t_info = np.arange(0,len(u_info))/fs
+t_info = np.arange(len(u_info))/fs
 #print("u_info is, ", np.size(u_info))
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
+#print(" max s_info is, ", max(abs(s_info)))
 s_info = s_info / max(abs(s_info))
-#print("s_info is, ", np.size(s_info))
 s_frame = np.concatenate((failsafe,s_pre,s_pause,s_info,s_pause,s_pre,failsafe))
 #print("s_frame is, ", np.size(s_frame))
 
@@ -102,7 +102,7 @@ s_frame = np.concatenate((failsafe,s_pre,s_pause,s_info,s_pause,s_pre,failsafe))
 
 # Channel Simulator
 hp = [1, 0.5, 0.2]
-taup = 3/343 + np.array([0,0.03,0.07])
+taup = 3/343 + np.array([0,0.003,0.007])
 P = len(hp)
 
 r = np.zeros(np.size(s_frame))
@@ -114,6 +114,7 @@ r = r + 0.01*np.random.randn(np.size(r))
 # Estimation
 ## Delay
 t_r = np.arange(len(r))/fs
+r = s_frame
 v = r * np.exp(-1j*2*np.pi*fc*t_r.T)
 
 R = signal.correlate(v,u_pre)
@@ -130,19 +131,18 @@ peaks, _ = signal.find_peaks(R,0.7) ## sketchy
 # OFDM Processing
 v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
 start = peaks[0] + len(u_pre) + Np # + 1
-v_vec = np.arange(0,Nf) + start
+v_vec = np.arange(Nf) + start
 #print(v_vec)
 #print(len(v_vec))
 #print(len(v))
 v_ofdm = v[v_vec.astype(int)]
-v_ofdm = s_info
 
 d_hat = np.zeros((K,NBlk),dtype=np.complex64)
 for i_blk in range(0,NBlk):
     v_ofdm_indices = np.arange((i_blk)*Nb,(i_blk+1)*Nb)
     v_blk_cp = v_ofdm[v_ofdm_indices.astype(int)]
     if is_cp:
-        v_blk = v_blk_cp[0:Ng] + v_blk[-Ng:]
+        v_blk = v_blk_cp[0:Ng] + v_blk[-Ng:] #this is incorrect
     else:
         v_blk = v_blk_cp
         v_blk[0:Ng] = v_blk[0:Ng] + v_blk[-Ng:]
@@ -155,7 +155,7 @@ for i_blk in range(0,NBlk):
     H_interp = np.interp(H_vals,H_indices,H_est)
 
     d_hat[:,i_blk] = y_blk / H_interp
-print("ofdm incidecs length, ",len(v_ofdm_indices))
+print("v_blk length",len(v_blk[-Ng:]))
 d_hat_data = d_hat[data_index,:]
 d_data = d[data_index,:]
 bits_tx = np.array(decision(d_data))
@@ -170,7 +170,7 @@ l_t = len(bits_rx_vec)
 #ones_index_b = np.arange(l_t-l_diff, l_t)
 #ones_index = np.append(ones_index_a,ones_index_b) 
 ones_index = np.arange(l_t - l_diff*2,l_t) #something to check out
-image_index = np.setdiff1d(np.arange(0,l_t),ones_index)
+image_index = np.setdiff1d(np.arange(l_t),ones_index)
 
 rx_image_stream = bits_rx_vec[image_index]
 rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
