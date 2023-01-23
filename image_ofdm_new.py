@@ -22,11 +22,13 @@ def decision(d):
      b = [np.sign(np.real(d)), np.sign(np.imag(d))]
      return b
 
+np.random.seed(6)
+
 # Load image
 ## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
 ## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
-raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
-#raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+#raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
 raw_image = raw_image[:,:,2]
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
@@ -72,7 +74,7 @@ for i_blk in range(0,NBlk):
     d[pilot_index,i_blk] = np.random.choice(alphabet,len(pilot_index),replace=True)
     d[data_index,i_blk] = image_data_vec[:,i_blk]
     ifft_mod = K*Nsps*np.fft.ifft(d[:,i_blk],int(K*Nsps))
-    ifft_mod = ifft_mod/abs(max(ifft_mod))
+    ifft_mod = ifft_mod/np.abs(np.max(ifft_mod))
     if is_cp:
         cp = ifft_mod[-Ng:] #eliminated 1-index
         u_info = np.concatenate((u_info, cp, ifft_mod))
@@ -82,10 +84,10 @@ for i_blk in range(0,NBlk):
         #u_info = np.append(u_info, zp)
 
 ## Preamble Baseband ZERO-INDEX
-u_pre = signal.resample(preamble, int(Nsps*len(preamble)))
+u_pre = signal.resample_poly(preamble*1.0, Nsps, 1)
 t_pre = np.arange(len(u_pre))/fs
 s_pre = np.real(u_pre * np.exp(1j*2*np.pi*fc*t_pre.T))
-s_pre = s_pre / max(abs(u_info))
+s_pre = s_pre / np.max(np.abs(s_pre))
 
 ## Generate Baseband
 s_pause = np.zeros(Np)
@@ -94,7 +96,7 @@ t_info = np.arange(len(u_info))/fs
 #print("u_info is, ", np.size(u_info))
 s_info = np.real(u_info * np.exp(1j*2*np.pi*f0*t_info.T))
 #print(" max s_info is, ", max(abs(s_info)))
-s_info = s_info / max(abs(s_info))
+s_info = s_info / np.max(np.abs(s_info))
 s_frame = np.concatenate((failsafe,s_pre,s_pause,s_info,s_pause,s_pre,failsafe))
 #print("s_frame is, ", np.size(s_frame))
 
@@ -114,20 +116,31 @@ r = r + 0.01*np.random.randn(np.size(r))
 # Estimation
 ## Delay
 t_r = np.arange(len(r))/fs
-r = s_frame
+r = s_frame.copy()
+
+# pyplot.figure()
+# f, t, Sxx = signal.spectrogram(r, fs)
+# pyplot.pcolormesh(t, f, Sxx, shading='gouraud')
+# pyplot.ylabel('Frequency [Hz]')
+# pyplot.xlabel('Time [sec]')
+# pyplot.show()
+
 v = r * np.exp(-1j*2*np.pi*fc*t_r.T)
 
-R = signal.correlate(v,u_pre)
+R = np.correlate(v,u_pre,"full")
 
-lags = signal.correlation_lags(len(v),len(u_pre))
-R = R[np.argwhere(lags<0)]
-lags = np.array([x for x in lags if x < 0])
+#lags = signal.correlation_lags(len(v),len(u_pre))
+#R = R[np.argwhere(lags<0)]
+#lags = np.array([x for x in lags if x < 0])
+lags = np.arange(len(R))
 
-R = R.flatten()
-R = np.absolute(R)
-R = R / np.amax(R)
+R = np.abs(R)
+R = R / np.max(R)
 
 peaks, _ = signal.find_peaks(R,0.7) ## sketchy
+pyplot.figure()
+pyplot.plot(lags[peaks],R[peaks],"x")
+pyplot.plot(lags,R)
 # OFDM Processing
 v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
 start = peaks[0] + len(u_pre) + Np # + 1
@@ -157,6 +170,7 @@ for i_blk in range(0,NBlk):
     d_hat[:,i_blk] = y_blk / H_interp
 print("v_blk length",len(v_blk[-Ng:]))
 d_hat_data = d_hat[data_index,:]
+pyplot.plot(np.real(d_hat_data).flatten(), np.imag(d_hat_data).flatten(),".")
 d_data = d[data_index,:]
 bits_tx = np.array(decision(d_data))
 bits_rx = np.array(decision(d_hat_data))
@@ -174,5 +188,6 @@ image_index = np.setdiff1d(np.arange(l_t),ones_index)
 
 rx_image_stream = bits_rx_vec[image_index]
 rx_image = np.reshape(rx_image_stream, np.shape(raw_image))
+pyplot.figure()
 display_image = pyplot.imshow(rx_image,cmap='gray',interpolation='nearest')
 pyplot.show()

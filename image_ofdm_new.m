@@ -69,7 +69,7 @@ end
 % Preamble Baseband
 u_pre = resample(preamble,Nsps,1);
 s_pre = real(u_pre.*exp(1i*2*pi*fc*(0:length(u_pre)-1).'/fs));
-s_pre = s_pre / max(abs(u_info));
+s_pre = s_pre / max(abs(s_pre));
 
 % Generate Frame
 s_pause = zeros(Np,1);
