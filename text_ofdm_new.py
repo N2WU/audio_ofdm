@@ -116,41 +116,14 @@ s_frame /= np.max(np.abs(s_frame))
 s_frame = s_frame[:,None]
 r = sd.playrec(s_frame,fs,channels=1,blocking=True).squeeze()
 
-# Channel Simulator
-# hp = [1, 0.5, 0.2]
-# taup = 3/343 + np.array([0,0.003,0.007])
-# P = len(hp)
-
-# r = np.zeros(np.size(s_frame))
-# #r = s_frame
-# for p in range(0,P):
-#     r = r+hp[p]*np.roll(np.array(s_frame),int(np.ceil(taup[p]*fs)))
-# print("Variance is", np.var(r))
-# sig_pwr = np.sum(np.abs(r)**2) / len(r)
-# snr_db = 100
-# noise_pwr = sig_pwr / 10**(snr_db/10)
-# r = r + np.sqrt(noise_pwr)*np.random.randn(np.size(r))
-# print("Noise PWR", noise_pwr, "Signal PWR", sig_pwr)
-
 # Estimation
 ## Delay
 t_r = np.arange(len(r))/fs
-#r = s_frame.copy()
-
-# pyplot.figure()
-# f, t, Sxx = signal.spectrogram(r, fs)
-# pyplot.pcolormesh(t, f, Sxx, shading='gouraud')
-# pyplot.ylabel('Frequency [Hz]')
-# pyplot.xlabel('Time [sec]')
-# pyplot.show()
 
 v = r * np.exp(-1j*2*np.pi*fc*t_r.T)
 
 R = np.correlate(v,u_pre,"full")
 
-#lags = signal.correlation_lags(len(v),len(u_pre))
-#R = R[np.argwhere(lags<0)]
-#lags = np.array([x for x in lags if x < 0])
 lags = np.arange(len(R))
 
 R = np.abs(R)
@@ -165,9 +138,7 @@ pyplot.show()
 v = r*np.exp(-1j*2*np.pi*f0*t_r.T)
 start = peaks[0] + Np + 1 # len(u_pre) + Np #1
 v_vec = np.arange(Nf) + start
-#print(v_vec)
-#print(len(v_vec))
-#print(len(v))
+
 v_ofdm = v[v_vec.astype(int)]
 l = 64
 f_kk = np.fft.fft(np.eye(K))
@@ -188,14 +159,12 @@ for i_blk in range(0,NBlk):
 
     H_est = y_blk[pilot_index] / d[pilot_index,i_blk]
     bl = 1/len(pilot_index) * f_kpl.conj().T@H_est
-    # H_est = np.roll(y_blk,1).conj()
     H_indices = np.arange(len(H_est))
     H_vals = np.arange(K)
     H_interp = np.interp(H_vals,H_indices,H_est)
     H_interp = f_kl@bl
 
     d_hat[:,i_blk] = y_blk / H_interp
-    # d_hat[:,i_blk] = y_blk / H_est
 
 d_hat_data = d_hat[data_index,:]
 d_data = d[data_index,:]
