@@ -46,9 +46,12 @@ while True:
     ## Black moveset
     if chess.Color == False:
         ### Receive
-        move = rx_ofdm()
-        ### Receive move
-        print("Received move is: ", move)
+        decision = ''
+        while decision != 'y':
+            move = rx_ofdm()
+            ### Receive move
+            print("Received move is: ", move)
+            decision = input("Receive again? y/n")
         uci_move = chess.Move.from_uci(move)
         board.push(uci_move)
         chess.Color = True

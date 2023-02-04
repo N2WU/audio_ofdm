@@ -18,9 +18,12 @@ sd.default.samplerate = fs
 np.random.seed(6)
 
 def tx_audio(audio_signal):
-    input("Press any key to transmit")
-    sd.play(audio_signal)
-    sd.wait()
+    decision = ''
+    while decision != 'r':
+        input("Press any key to transmit")
+        sd.play(audio_signal)
+        sd.wait()
+        decision = input("Press 'r' to retransmit, or any other key to continue")
     return True
 
 def tx_ofdm(move):
