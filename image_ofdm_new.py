@@ -29,7 +29,7 @@ np.random.seed(6)
 ## C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
 ## D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png
 #raw_image = np.array(image.imread('D:/pearc/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
-raw_image = np.array(image.imread('C:/Users/Nolan/Documents/GitHub/audio_ofdm/shostakovich_image_rs.png'))
+raw_image = np.array(image.imread('./shostakovich_image_rs.png'))
 raw_image = raw_image[:,:,2]
 ## resize image
 image_stream = np.reshape(raw_image, -1) #transpose due to matlab quirk
